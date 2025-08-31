@@ -1,9 +1,13 @@
 import os
 import sys
 
-# Allow importing hand_model and object_model from third_party/BimanGrasp-Dataset
-THIRD_PARTY_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'third_party', 'BimanGrasp-Dataset')
-sys.path.append(THIRD_PARTY_DIR)
+# Allow importing project-local packages and third_party modules
+PROJ_ROOT = os.path.dirname(os.path.dirname(__file__))
+if PROJ_ROOT not in sys.path:
+    sys.path.insert(0, PROJ_ROOT)
+THIRD_PARTY_DIR = os.path.join(PROJ_ROOT, 'third_party', 'BimanGrasp-Dataset')
+if THIRD_PARTY_DIR not in sys.path:
+    sys.path.insert(0, THIRD_PARTY_DIR)
 
 import argparse
 import numpy as np
@@ -13,8 +17,12 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import trimesh as tm
 
-from hand_model import HandModel
-from object_model import ObjectModel
+from preprocess.utils import (
+    get_grasp_center_point,
+    build_hand_pose_tensor,
+    sample_object_points_with_trimesh,
+    load_models_and_data,
+)
 
 
 translation_names = ['WRJTx', 'WRJTy', 'WRJTz']
@@ -143,42 +151,16 @@ def main():
     args = parser.parse_args()
 
     device = args.device
-    models_dir = os.path.join(THIRD_PARTY_DIR, 'models')
-    meshes_dir = os.path.join(models_dir, 'meshes')
-    left_mjcf = os.path.join(models_dir, 'left_shadow_hand_wrist_free.xml')
-    right_mjcf = os.path.join(models_dir, 'right_shadow_hand_wrist_free.xml')
-    left_contact_json = os.path.join(models_dir, 'left_hand_contact_points.json')
-    right_contact_json = os.path.join(models_dir, 'right_hand_contact_points.json')
-    penetration_json = os.path.join(models_dir, 'penetration_points.json')
-    object_root_dir = os.path.join(THIRD_PARTY_DIR, 'Object-Release-v1')
-
-    npy_path = os.path.join(args.result_path, args.object_name + '.npy')
-    data = np.load(npy_path, allow_pickle=True)
-    data_dict = data[args.num]
-
-    right_qpos = data_dict['qpos_right']
-    right_hand_pose = build_hand_pose_tensor(right_qpos, device)
-    left_qpos = data_dict['qpos_left']
-    left_hand_pose = build_hand_pose_tensor(left_qpos, device)
-
-    left_hand_model = HandModel(
-        mjcf_path=left_mjcf, mesh_path=meshes_dir,
-        contact_points_path=left_contact_json, penetration_points_path=penetration_json,
-        n_surface_points=4096, device=device, handedness='left_hand')
-
-    right_hand_model = HandModel(
-        mjcf_path=right_mjcf, mesh_path=meshes_dir,
-        contact_points_path=right_contact_json, penetration_points_path=penetration_json,
-        n_surface_points=4096, device=device, handedness='right_hand')
-
-    object_model = ObjectModel(
-        data_root_path=object_root_dir, batch_size_each=1, num_samples=args.k, device=device)
-
-    right_hand_model.set_parameters(right_hand_pose.unsqueeze(0))
-    left_hand_model.set_parameters(left_hand_pose.unsqueeze(0))
-
-    object_model.initialize(args.object_name)
-    object_model.object_scale_tensor = torch.tensor(data_dict['scale'], dtype=torch.float, device=device).reshape(1, 1)
+    obj_points, right_pts, left_pts, data_dict, right_hand_model, left_hand_model, object_model = load_models_and_data(
+        object_name=args.object_name,
+        result_path=args.result_path,
+        device=device,
+        base_n=args.base_n,
+        pre_rand_n=args.pre_rand_n,
+        use_fps=args.use_fps,
+        k=args.k,
+        x_shift=args.x_shift,
+    )
 
     right_hand_plotly = right_hand_model.get_plotly_data(i=0, opacity=1, color='lightslategray', with_contact_points=False)
     left_hand_plotly = left_hand_model.get_plotly_data(i=0, opacity=1, color='powderblue', with_contact_points=False)
@@ -186,21 +168,6 @@ def main():
 
     right_pts = right_hand_model.get_surface_points()[0]
     left_pts = left_hand_model.get_surface_points()[0]
-
-    mesh = object_model.object_mesh_list[0]
-    scale_tensor = object_model.object_scale_tensor[0, 0]
-    scale_val = float(scale_tensor.item() if isinstance(scale_tensor, torch.Tensor) else scale_tensor)
-
-    base_points = sample_object_points_with_trimesh(mesh, base_n=args.base_n, scale=scale_val, x_shift=args.x_shift, device=device)
-    pre_points = base_points
-    if args.use_fps and pre_points.shape[0] > args.pre_rand_n > 0:
-        idx = torch.randperm(pre_points.shape[0], device=device)[:args.pre_rand_n]
-        pre_points = pre_points[idx]
-
-    if args.use_fps:
-        obj_points = furthest_point_sampling(pre_points, args.k)
-    else:
-        obj_points = ensure_k_points(pre_points, args.k)
 
     # Separate affordances
     right_afford = compute_affordance(obj_points, right_pts.to(dtype=torch.float, device=device), dmax=args.dmax)
@@ -210,8 +177,34 @@ def main():
     afford_right_np = right_afford.detach().cpu().numpy()
     afford_left_np = left_afford.detach().cpu().numpy()
 
+    # Compute representative grasp center points for right and left hands
+    right_center = get_grasp_center_point(obj_points, right_pts.to(dtype=torch.float, device=device))
+    left_center = get_grasp_center_point(obj_points, left_pts.to(dtype=torch.float, device=device))
+    right_center_np = right_center.detach().cpu().numpy()
+    left_center_np = left_center.detach().cpu().numpy()
+
     fig = make_three_panel_figure(right_hand_plotly, left_hand_plotly, object_plotly,
                                   obj_points_np, afford_right_np, afford_left_np)
+
+    # Add center point markers to middle and right panels for inspection
+    fig.add_trace(go.Scatter3d(x=[right_center_np[0]], y=[right_center_np[1]], z=[right_center_np[2]],
+                               mode='markers', marker=dict(size=5, color='red'), name='right_center'),
+                  row=1, col=2)
+    fig.add_trace(go.Scatter3d(x=[left_center_np[0]], y=[left_center_np[1]], z=[left_center_np[2]],
+                               mode='markers', marker=dict(size=5, color='red'), name='left_center'),
+                  row=1, col=3)
+
+    # Also visualize hands and object in the affordance panels for context
+    # Re-generate traces to avoid reusing the same trace objects across subplots
+    right_hand_plotly_c2 = right_hand_model.get_plotly_data(i=0, opacity=0.6, color='lightslategray', with_contact_points=False)
+    object_plotly_c2 = object_model.get_plotly_data(i=0, color='seashell', opacity=0.3)
+    for t in object_plotly_c2 + right_hand_plotly_c2:
+        fig.add_trace(t, row=1, col=2)
+
+    left_hand_plotly_c3 = left_hand_model.get_plotly_data(i=0, opacity=0.6, color='powderblue', with_contact_points=False)
+    object_plotly_c3 = object_model.get_plotly_data(i=0, color='seashell', opacity=0.3)
+    for t in object_plotly_c3 + left_hand_plotly_c3:
+        fig.add_trace(t, row=1, col=3)
     if args.save_html is not None:
         os.makedirs(os.path.dirname(args.save_html), exist_ok=True)
         fig.write_html(args.save_html)
