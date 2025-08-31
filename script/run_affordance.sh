@@ -14,7 +14,7 @@ NUM=${2:-0}
 PROJ_DIR="/home/peiqi621/projects/2026-CVPR-BiDexHand"
 PY_BIN="/home/peiqi621/anaconda3/envs/affordance/bin/python"
 
-SCRIPT_PY="$PROJ_DIR/third_party/BimanGrasp-Dataset/visualize_affordance.py"
+SCRIPT_PY="$PROJ_DIR/preprocess/visualize_affordance.py"
 RESULT_PATH="$PROJ_DIR/third_party/BimanGrasp-Dataset/BimanGrasp-Dataset-Release-v1"
 OUT_DIR="$PROJ_DIR/preprocess"
 mkdir -p "$OUT_DIR"
