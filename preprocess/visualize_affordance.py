@@ -84,25 +84,46 @@ def compute_affordance(object_points: torch.Tensor, hand_points: torch.Tensor, d
     return afford
 
 
-def make_side_by_side_figure(right_hand_plotly, left_hand_plotly, object_plotly, obj_points_np, afford_np):
-    fig = make_subplots(rows=1, cols=2, specs=[[{"type": "scene"}, {"type": "scene"}]], column_widths=[0.5, 0.5])
+def make_three_panel_figure(right_hand_plotly, left_hand_plotly, object_plotly,
+                            obj_points_np,
+                            afford_right_np,
+                            afford_left_np):
+    fig = make_subplots(rows=1, cols=3,
+                        specs=[[{"type": "scene"}, {"type": "scene"}, {"type": "scene"}]],
+                        column_widths=[0.34, 0.33, 0.33])
 
+    # Left: original mesh + both hands
     for trace in right_hand_plotly + object_plotly + left_hand_plotly:
         fig.add_trace(trace, row=1, col=1)
 
-    scatter = go.Scatter3d(
+    # Middle: right-hand affordance
+    scatter_right = go.Scatter3d(
         x=obj_points_np[:, 0], y=obj_points_np[:, 1], z=obj_points_np[:, 2],
         mode='markers',
-        marker=dict(size=3, color=afford_np, colorscale='Viridis', cmin=0.0, cmax=1.0, colorbar=dict(title='afford'))
+        marker=dict(size=2, color=afford_right_np, colorscale='Viridis', cmin=0.0, cmax=1.0,
+                    colorbar=dict(title='afford_right'))
     )
-    fig.add_trace(scatter, row=1, col=2)
+    fig.add_trace(scatter_right, row=1, col=2)
 
-    for c in [1, 2]:
+    # Right: left-hand affordance
+    scatter_left = go.Scatter3d(
+        x=obj_points_np[:, 0], y=obj_points_np[:, 1], z=obj_points_np[:, 2],
+        mode='markers',
+        marker=dict(size=2, color=afford_left_np, colorscale='Viridis', cmin=0.0, cmax=1.0,
+                    colorbar=dict(title='afford_left'))
+    )
+    fig.add_trace(scatter_left, row=1, col=3)
+
+    for c in [1, 2, 3]:
         fig.update_scenes(xaxis_visible=False, yaxis_visible=False, zaxis_visible=False, aspectmode='data', row=1, col=c)
 
-    default_eye = dict(x=2.2, y=2.2, z=2.2)
-    fig.update_layout(scene_camera=dict(eye=default_eye), scene2_camera=dict(eye=default_eye))
-    fig.update_layout(paper_bgcolor='#E2F0D9', plot_bgcolor='#E2F0D9', margin=dict(l=0, r=0, t=30, b=0), title_text='Bimanual Grasp Affordance', title_x=0.5)
+    default_eye = dict(x=3.0, y=3.0, z=3.0)
+    fig.update_layout(scene_camera=dict(eye=default_eye),
+                      scene2_camera=dict(eye=default_eye),
+                      scene3_camera=dict(eye=default_eye))
+    fig.update_layout(paper_bgcolor='#E2F0D9', plot_bgcolor='#E2F0D9',
+                      margin=dict(l=0, r=0, t=30, b=0),
+                      title_text='Bimanual Grasp Affordance (Split by Hand)', title_x=0.5)
     return fig
 
 
@@ -165,7 +186,6 @@ def main():
 
     right_pts = right_hand_model.get_surface_points()[0]
     left_pts = left_hand_model.get_surface_points()[0]
-    hand_points = torch.cat([right_pts, left_pts], dim=0).to(dtype=torch.float, device=device)
 
     mesh = object_model.object_mesh_list[0]
     scale_tensor = object_model.object_scale_tensor[0, 0]
@@ -182,11 +202,16 @@ def main():
     else:
         obj_points = ensure_k_points(pre_points, args.k)
 
-    afford = compute_affordance(obj_points, hand_points, dmax=args.dmax)
-    obj_points_np = obj_points.detach().cpu().numpy()
-    afford_np = afford.detach().cpu().numpy()
+    # Separate affordances
+    right_afford = compute_affordance(obj_points, right_pts.to(dtype=torch.float, device=device), dmax=args.dmax)
+    left_afford = compute_affordance(obj_points, left_pts.to(dtype=torch.float, device=device), dmax=args.dmax)
 
-    fig = make_side_by_side_figure(right_hand_plotly, left_hand_plotly, object_plotly, obj_points_np, afford_np)
+    obj_points_np = obj_points.detach().cpu().numpy()
+    afford_right_np = right_afford.detach().cpu().numpy()
+    afford_left_np = left_afford.detach().cpu().numpy()
+
+    fig = make_three_panel_figure(right_hand_plotly, left_hand_plotly, object_plotly,
+                                  obj_points_np, afford_right_np, afford_left_np)
     if args.save_html is not None:
         os.makedirs(os.path.dirname(args.save_html), exist_ok=True)
         fig.write_html(args.save_html)

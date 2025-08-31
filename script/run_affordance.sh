@@ -8,7 +8,7 @@ set -euo pipefail
 #   OBJECT_NAME=Asus_M5A99FX_PRO_R20_Motherboard_ATX_Socket_AM3
 #   NUM=0
 
-OBJ_NAME=${1:-Asus_M5A99FX_PRO_R20_Motherboard_ATX_Socket_AM3}
+OBJ_NAME=${1:-3D_Dollhouse_Sofa}
 NUM=${2:-0}
 
 PROJ_DIR="/home/peiqi621/projects/2026-CVPR-BiDexHand"
@@ -20,7 +20,7 @@ OUT_DIR="$PROJ_DIR/preprocess"
 mkdir -p "$OUT_DIR"
 
 # Sampling settings (edit as needed)
-K=1024
+K=8192
 DMAX=0.05
 BASE_N=30000
 PRE_RAND_N=12000
