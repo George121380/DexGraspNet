@@ -21,19 +21,50 @@ from hand_model import HandModel
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dir', type=str, required=True, help='preprocess/<obj_name>_<num> directory')
+    parser.add_argument('--dir', type=str, required=True, help='preprocess/results/<obj_name> directory')
+    parser.add_argument('--num', type=int, default=0, help='pose index to visualize')
     parser.add_argument('--save_html', type=str, default=None)
     args = parser.parse_args()
 
     obj_pts_path = os.path.join(args.dir, 'obj_points.npy')
-    grasp_pairs_path = os.path.join(args.dir, 'grasp_pairs.npy')
-    if not (os.path.exists(obj_pts_path) and os.path.exists(grasp_pairs_path)):
-        raise FileNotFoundError('Expected obj_points.npy and grasp_pairs.npy in the directory.')
+    # aggregated pairs file
+    pairs_db_path = os.path.join(args.dir, 'grasp_pairs.npy')
+    if not os.path.exists(obj_pts_path):
+        raise FileNotFoundError('Expected obj_points.npy in the directory.')
+    if not os.path.exists(pairs_db_path):
+        # legacy support
+        legacy_path = os.path.join(args.dir, f'grasp_pairs_{args.num}.npy')
+        if not os.path.exists(legacy_path):
+            legacy_path2 = os.path.join(args.dir, 'grasp_pairs.npy')
+        else:
+            legacy_path2 = legacy_path
+        if not os.path.exists(legacy_path2):
+            raise FileNotFoundError('Expected grasp_pairs.npy (aggregated) or grasp_pairs_<num>.npy (legacy).')
+        pairs_db = np.load(legacy_path2, allow_pickle=True).item()
+        if 'pairs' in pairs_db:
+            # already in aggregated format
+            pass
+        else:
+            # single pair file -> wrap to aggregated
+            pairs_db = {
+                'object_name': os.path.basename(args.dir.rstrip('/')),
+                'pairs': {int(args.num): pairs_db}
+            }
+    else:
+        pairs_db = np.load(pairs_db_path, allow_pickle=True).item()
+
+    if 'pairs' not in pairs_db or len(pairs_db['pairs']) == 0:
+        raise ValueError('No pairs found in the aggregated grasp_pairs.npy')
+
+    if int(args.num) not in pairs_db['pairs']:
+        available = sorted(list(map(int, pairs_db['pairs'].keys())))
+        raise KeyError(f"Pose index {args.num} not found. Available indices: {available}")
+
+    pair = pairs_db['pairs'][int(args.num)]
 
     obj_points = np.load(obj_pts_path)
-    pairs = np.load(grasp_pairs_path, allow_pickle=True).item()
-    right_center = np.array(pairs['right']['center_point'])
-    left_center = np.array(pairs['left']['center_point'])
+    right_center = np.array(pair['right']['center_point'])
+    left_center = np.array(pair['left']['center_point'])
 
     # Build hand models from recorded qpos and overlay them
     device = 'cpu'
@@ -62,8 +93,8 @@ def main():
         handedness='right_hand'
     )
 
-    right_pose = build_hand_pose_tensor(pairs['right']['qpos'], device)
-    left_pose = build_hand_pose_tensor(pairs['left']['qpos'], device)
+    right_pose = build_hand_pose_tensor(pair['right']['qpos'], device)
+    left_pose = build_hand_pose_tensor(pair['left']['qpos'], device)
     right_hand_model.set_parameters(right_pose.unsqueeze(0))
     left_hand_model.set_parameters(left_pose.unsqueeze(0))
 
@@ -97,7 +128,11 @@ def main():
 
     fig.update_layout(title='Preprocessed Grasp Visualization', title_x=0.5)
 
-    if args.save_html:
+    # Default save path: save into the input directory if not specified
+    if args.save_html is None:
+        default_path = os.path.join(args.dir, f'vis_{args.num}.html')
+        fig.write_html(default_path)
+    else:
         os.makedirs(os.path.dirname(args.save_html), exist_ok=True)
         fig.write_html(args.save_html)
     fig.show()

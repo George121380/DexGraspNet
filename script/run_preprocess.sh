@@ -16,7 +16,7 @@ PY_BIN="/home/peiqi621/anaconda3/envs/affordance/bin/python"
 
 SCRIPT_PY="$PROJ_DIR/preprocess/preprocess.py"
 RESULT_PATH="$PROJ_DIR/third_party/BimanGrasp-Dataset/BimanGrasp-Dataset-Release-v1"
-OUT_DIR="$PROJ_DIR/preprocess"
+OUT_DIR="$PROJ_DIR/preprocess/results"
 mkdir -p "$OUT_DIR"
 
 # Sampling settings
@@ -34,6 +34,7 @@ CMD=("$PY_BIN" "$SCRIPT_PY" \
   --base_n "$BASE_N" \
   --pre_rand_n "$PRE_RAND_N" \
   --x_shift "$X_SHIFT" \
+  --outer_only \
   --out_dir "$OUT_DIR")
 
 if [[ "$USE_FPS" == "1" ]]; then
@@ -43,8 +44,8 @@ fi
 echo "Running: ${CMD[*]}"
 "${CMD[@]}"
 
-echo "Done. Outputs:"
-echo "  $OUT_DIR/${OBJ_NAME}_${NUM}/obj_points.npy"
-echo "  $OUT_DIR/${OBJ_NAME}_${NUM}/grasp_pairs.npy"
+echo "Done. Outputs (per-object folder):"
+echo "  $OUT_DIR/${OBJ_NAME}/obj_points.npy"
+echo "  $OUT_DIR/${OBJ_NAME}/grasp_pairs_${NUM}.npy"
 
 

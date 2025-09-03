@@ -148,6 +148,10 @@ def main():
     parser.add_argument('--pre_rand_n', type=int, default=10000)
     parser.add_argument('--use_fps', action='store_true', default=False)
     parser.add_argument('--x_shift', type=float, default=0.0)
+    parser.add_argument('--visible_only', action='store_true', help='sample only camera-visible outer surface points')
+    parser.add_argument('--cam_origin', type=float, nargs=3, default=None, help='camera origin xyz for visibility test')
+    # Default to outer-only sampling to remove interior points consistently across the codebase
+    parser.add_argument('--outer_only', action='store_true', default=True, help='sample only outer surface (remove interior-facing)')
     args = parser.parse_args()
 
     device = args.device
@@ -160,6 +164,9 @@ def main():
         use_fps=args.use_fps,
         k=args.k,
         x_shift=args.x_shift,
+        visible_only=args.visible_only,
+        camera_origin=np.array(args.cam_origin, dtype=np.float64) if args.cam_origin is not None else None,
+        outer_only=args.outer_only,
     )
 
     right_hand_plotly = right_hand_model.get_plotly_data(i=0, opacity=1, color='lightslategray', with_contact_points=False)
