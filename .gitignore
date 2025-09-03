@@ -1,5 +1,4 @@
 # Ignore dev and third_party folders
-dev/
 third_party/
 
 # Python
