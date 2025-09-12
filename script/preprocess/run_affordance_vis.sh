@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# FUNCTION: Affordance visualization script
+# Generates interactive 3D HTML visualizations showing bimanual grasp affordance
+# Creates dual-hand affordance heatmaps for specified objects
+
 # Run affordance visualization and save HTML to preprocess/affordance_vis directory.
 # Usage:
 #   bash script/run_affordance.sh [OBJECT_NAME] [NUM]

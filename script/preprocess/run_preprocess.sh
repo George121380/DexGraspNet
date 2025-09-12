@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# FUNCTION: Single object preprocessing script
+# Extracts point cloud surface and bimanual grasp pose pairs for one specific object
+# Converts BimanGrasp dataset format to training-ready point cloud + grasp data
+
 # Run preprocessing: export object point cloud and left/right grasp (qpos + center point) pairs.
 # Usage:
 #   bash script/run_preprocess.sh [OBJECT_NAME] [NUM]
@@ -11,8 +15,8 @@ set -euo pipefail
 OBJ_NAME=${1:-3D_Dollhouse_Sofa}
 NUM=${2:-0}
 
-PROJ_DIR="/home/peiqi621/projects/2026-CVPR-BiDexHand"
-PY_BIN="/home/peiqi621/anaconda3/envs/affordance/bin/python"
+PROJ_DIR="/media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex"
+PY_BIN="/home/george/anaconda3/envs/bimangrasp/bin/python"
 
 SCRIPT_PY="$PROJ_DIR/preprocess/preprocess.py"
 RESULT_PATH="$PROJ_DIR/third_party/BimanGrasp-Dataset/BimanGrasp-Dataset-Release-v1"

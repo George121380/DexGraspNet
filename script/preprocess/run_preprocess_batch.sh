@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# FUNCTION: Batch preprocessing script for BimanGrasp dataset
+# Processes first N objects from BimanGrasp dataset, extracting point clouds and grasp pairs
+# Prepares data for affordance training by sampling object surfaces and hand poses
+
 # Batch preprocess the first N objects (default 5), all poses per object.
 # Usage:
 #   bash script/run_preprocess_batch.sh [TOP_K]
@@ -8,8 +12,8 @@ set -euo pipefail
 
 TOP_K=${1:-5}
 
-PROJ_DIR="/home/peiqi621/projects/2026-CVPR-BiDexHand"
-PY_BIN="/home/peiqi621/anaconda3/envs/affordance/bin/python"
+PROJ_DIR="/media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex"
+PY_BIN="/home/george/anaconda3/envs/bimangrasp/bin/python"
 
 RESULT_PATH="$PROJ_DIR/third_party/BimanGrasp-Dataset/BimanGrasp-Dataset-Release-v1"
 RUN_ONE="$PROJ_DIR/script/run_preprocess.sh"

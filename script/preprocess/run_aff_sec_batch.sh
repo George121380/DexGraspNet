@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# FUNCTION: Batch processing script for generating affordance training data
+# Processes multiple objects to create left-hand keypoints and right-hand affordance scores
+# Outputs training pairs for SecAff model training
+
 # Batch generator for: left hand keypoints, whole point cloud, right-hand affordance scores
 # Usage:
 #   script/run_aff_sec_batch.sh [IN_ROOT] [OUT_ROOT] [SIGMA] [extra-args...]
