@@ -103,7 +103,8 @@ def process_object(obj_name: str,
                    right_kps_use_center_only: bool,
                    left_kps_use_center_only: bool,
                    left_kps_max: int,
-                   right_kps_max: int):
+                   right_kps_max: int,
+                   device: str):
     obj_dir = os.path.join(in_root, obj_name)
     try:
         obj_points, pairs_db = load_pairs_db(obj_dir)
@@ -111,7 +112,7 @@ def process_object(obj_name: str,
         print(f"[Skip] {obj_name}: {e}")
         return False
 
-    device = 'cpu'
+    device = device
     models_dir = os.path.join(THIRD_PARTY_DIR, 'models')
     meshes_dir = os.path.join(models_dir, 'meshes')
     left_mjcf = os.path.join(models_dir, 'left_shadow_hand_wrist_free.xml')
@@ -147,7 +148,7 @@ def process_object(obj_name: str,
         print(f"[Skip] {obj_name}: invalid pairs format")
         return False
 
-    pts = torch.from_numpy(obj_points).float()
+    pts = torch.from_numpy(obj_points).to(device).float()
 
     out_pairs = {}
     for idx in pose_indices:
@@ -212,6 +213,7 @@ def main():
     parser.add_argument('--left_kps_use_center_only', action='store_true', help='default True keeps a single left grasp center')
     parser.add_argument('--left_kps_max', type=int, default=64)
     parser.add_argument('--right_kps_max', type=int, default=32)
+    parser.add_argument('--device', type=str, default='auto', help="'cpu', 'cuda', or 'auto'")
     args = parser.parse_args()
 
     # Default behavior: left center only if flag not provided
@@ -220,6 +222,12 @@ def main():
     in_root = args.in_root
     out_root = args.out_root
     os.makedirs(out_root, exist_ok=True)
+
+    # resolve device
+    if args.device == 'auto':
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    else:
+        device = args.device
 
     if not os.path.isdir(in_root):
         raise NotADirectoryError(f'in_root not found: {in_root}')
@@ -239,6 +247,7 @@ def main():
             left_kps_use_center_only=left_center_only,
             left_kps_max=args.left_kps_max,
             right_kps_max=args.right_kps_max,
+            device=device,
         )
         if ok:
             success += 1

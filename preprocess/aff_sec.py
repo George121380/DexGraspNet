@@ -124,6 +124,7 @@ def main():
     parser.add_argument('--right_kps_use_center_only', action='store_true', help='use only right grasp center as keypoint center(s)')
     parser.add_argument('--left_kps_max', type=int, default=64, help='max number of left hand keypoints')
     parser.add_argument('--right_kps_max', type=int, default=32, help='max number of right hand keypoints from mesh (if not center-only)')
+    parser.add_argument('--device', type=str, default='auto')
     args = parser.parse_args()
 
     obj_pts_path = os.path.join(args.dir, 'obj_points.npy')
@@ -161,7 +162,10 @@ def main():
     pair = pairs_db['pairs'][int(args.num)]
 
     # Build hand models and recover left-hand keypoints
-    device = 'cpu'
+    if args.device == 'auto':
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    else:
+        device = args.device
     models_dir = os.path.join(THIRD_PARTY_DIR, 'models')
     meshes_dir = os.path.join(models_dir, 'meshes')
     left_mjcf = os.path.join(models_dir, 'left_shadow_hand_wrist_free.xml')
@@ -213,7 +217,7 @@ def main():
     right_centers = torch.cat(right_centers_list, dim=0) if len(right_centers_list) > 0 else compute_hand_keypoints(right_hand_model, right_pose, max_k=args.right_kps_max)
 
     # Compute Gaussian affordance for right hand around right-hand keypoints; left_kps are the condition carried in batch
-    pts = torch.from_numpy(obj_points).float()
+    pts = torch.from_numpy(obj_points).to(device).float()
     aff = gaussian_field(pts, right_centers, sigma=args.sigma)  # (N,)
     aff_np = aff.detach().cpu().numpy()
 

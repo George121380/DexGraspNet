@@ -1,5 +1,11 @@
 # Ignore dev and third_party folders
-third_party/
+dev/
+
+# Keep folder but ignore contents; keep .gitkeep
+third_party/*
+!third_party/.gitkeep
+data/preprocess_data/*
+!data/preprocess_data/.gitkeep
 
 # Python
 __pycache__/
@@ -84,3 +90,5 @@ checkpoints/
 models/saved/
 *.ckpt
 *.pkl
+train_eval/checkpoints_all/
+train_eval/evaluation_results/

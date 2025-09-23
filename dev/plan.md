@@ -1,56 +1,112 @@
-### 目标
+# Affordance Model Implementation Plan
 
-为每条 (object, pose) 数据计算物体表面点的affordance，并进行并排可视化：
-- 左侧：原始mesh + 左右手抓取姿态（复用 `visualize_dataset.py` 的逻辑和数据加载）。
-- 右侧：在物体表面采样 k=1024 个点，计算点到双手模型任意最近点的距离，并将距离映射到 [0,1] 作为affordance，使用颜色可视化点云。
+## Goal
+- Input: object point cloud `P ∈ R^{N×3}` and a feature point `c ∈ R^3` (or a small set of keypoints).
+- Output: per-point affordance map `A ∈ R^{N}` (values in [0,1]).
+- Training data: `/media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/aff_sec_result/11pro_SL_TRX_FG/aff_sec_pairs.npy` (and similar under `aff_sec_result/*/aff_sec_pairs.npy`).
+- Backend: PointNet++ (PointNet2) backbone from `third_party/Pointnet2_PyTorch` with set abstraction (SSG) + feature propagation for dense prediction.
 
-### 数据与模型
-- 物体：`third_party/BimanGrasp-Dataset/Object-Release-v1/<object_name>/coacd/decomposed.obj`
-- 物体采样：`ObjectModel.initialize(object_code)` 已提供 `surface_points_tensor`（此处默认采用mesh顶点采样再随机下采样/重复以达到k）。
-- 手模型：`HandModel` 已支持 `set_parameters` 并能通过 `get_surface_points()` 输出手在世界坐标下的表面点集合（我们将设置 `n_surface_points`，或直接使用构造中的默认顶点采样逻辑）。
+## Data Understanding and I/O
+- Each `aff_sec_pairs.npy` stores a dict with keys:
+  - `object_name`: string
+  - `points`: `(N,3)` float32 array — object point cloud
+  - `pairs`: dict[int -> sample]
+    - For each pose index `i`:
+      - `left_kps`: `(1,3)` float32 array — exactly one conditioning point per pair (current file)
+      - `aff_scores_right`: `(N,)` float32 array — per-point affordance aligned with `points` (normalized)
+  - `meta`: configuration (sigma, etc.)
+- Note: In `/media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/aff_sec_result/11pro_SL_TRX_FG/aff_sec_pairs.npy`, there are 36 pairs; `N = 8192` for all pairs. Mapping is 1 left_kps → 1 affordance map per pair (not many-to-many).
+- For our model: condition on one feature point `c = left_kps[0]`. If future datasets provide multiple keypoints per pair, we can extend via pooling (e.g., mean/attention) or set-conditioning without changing the training API.
 
-### Affordance 计算
-1. 载入指定 `object_name` 与 `num`（pose索引），读取 `BimanGrasp-Dataset-Release-v1/<object_name>.npy` 的第 `num` 项。
-2. 通过 `HandModel` 构建左右手实例，调用 `set_parameters` 应用抓取姿态，得到两手在世界坐标的表面点云 `P_hand`（合并左右手）。
-3. 通过 `ObjectModel.initialize(object_name)` 并设置 `object_scale_tensor`，获取物体表面点云 `P_obj`（大小约等于k，必要时随机下采样或重复补齐到k=1024）。
-4. 计算每个 `p ∈ P_obj` 到集合 `P_hand` 的最近邻距离：`d(p) = min_{q∈P_hand} ||p - q||₂`。
-5. 将距离映射为affordance：`a(p) = 1 - clip(d(p)/d_max, 0, 1)`，其中 `d_max` 可选：
-   - 常数阈值（如 0.05m），或
-   - 当前样本中的分位数（如 95%分位）。
-   默认采用常数阈值（可通过CLI参数调整）。
+## Model Design (`models/affordance_pointnet2.py`)
+- Reuse classes from `third_party/Pointnet2_PyTorch` directly:
+  - Set abstraction and grouping: `pointnet2_ops.pointnet2_modules.PointnetSAModule` (SSG)
+  - Feature propagation: `pointnet2_ops.pointnet2_modules.PointnetFPModule`
+  - Input formatting helper: reuse `_break_up_pc` pattern from `pointnet2/models/pointnet2_ssg_cls.py`/`pointnet2_ssg_sem.py` so inputs are `(B, N, 3 + C)` with xyz first.
+- Conditioning with minimal change to interfaces:
+  - For each point `p`, build per-point features `f = concat(r = p - c, d = ||p - c||)`; default `C = 4`.
+  - Expose toggles for experiments:
+    - `use_condition` (bool, default: true): if false, do not append conditioning features ⇒ `C = 0`.
+    - `condition_mode` (str, default: 'rd'): one of `{'none','r','rd'}` mapping to `C ∈ {0,3,4}`.
+    - When `use_xyz=True`, the first SA MLP input channels should be `C + 3` (e.g., 7 for `rd`, 6 for `r`, 3 for `none`).
+  - Pack model input as `(B, N, 3 + C)` where the first 3 are xyz and the next `C` are features; set `use_xyz=True` in SA modules so xyz are concatenated inside ops as the library expects.
+- SA/FP architecture mirroring `pointnet2_ssg_sem.py`, with correct first-MLP dims:
+  - Because `use_xyz=True`, the first MLP input channel should be `C + 3` (= 7 when `C=4`).
+  - Suggested SSG stack:
+    - SA1: `PointnetSAModule(npoint=1024, radius=0.1, nsample=32, mlp=[C+3, 32, 32, 64], use_xyz=True)`
+    - SA2: `PointnetSAModule(npoint=256,  radius=0.2, nsample=32, mlp=[64, 64, 64, 128], use_xyz=True)`
+    - SA3: `PointnetSAModule(npoint=64,   radius=0.4, nsample=32, mlp=[128, 128, 128, 256], use_xyz=True)`
+    - SA4: `PointnetSAModule(npoint=16,   radius=0.8, nsample=32, mlp=[256, 256, 256, 512], use_xyz=True)`
+  - FP stack (mirrors semseg model):
+    - `FP4: PointnetFPModule(mlp=[512 + 256, 256, 256])`
+    - `FP3: PointnetFPModule(mlp=[256 + 128, 256, 256])`
+    - `FP2: PointnetFPModule(mlp=[256 + 64, 256, 128])`
+    - `FP1: PointnetFPModule(mlp=[128 + C+3, 128, 128, 128])`  ← input skip has channels `(C+3)` like semseg uses `128 + 6`
+- Head and outputs (stay compatible with library forward style):
+  - Final head: `Conv1d(128, 1, kernel_size=1)` to produce per-point logits `(B, 1, N)`.
+  - Train with L1 (MAE) on probabilities: apply `sigmoid` to logits inside the loss; keep returning logits from the model, and use `sigmoid` only for evaluation/visualization to obtain `(B, N)`.
+- Drop-in alternatives without interface changes:
+  - MSG variant: if multi-scale features are desired, use `PointnetSAModuleMSG` to construct the SA layers with the same interfaces (only adjust `mlp` lists).
+  - Minimal variant using only `xyz + r` (`C=3`): change the first SA1 MLP input from `C+3=7` to `6`; other layers unchanged.
+- Input convention (aligned with the library):
+  - `pointcloud` tensor has shape `(B, N, 3 + C)` with xyz first and features after; `_break_up_pc` splits `xyz` and `features` before feeding `PointnetSAModule`/FP.
+- Minimal customization scope:
+  - Create a thin wrapper class (e.g., `AffordancePointNet2SSG`) to assemble the modules and head; do not modify CUDA/ops or module interfaces, to benefit directly from the library.
 
-### 可视化
-- 采用 Plotly：
-  - 左侧：直接复用 `visualize_dataset.py` 的三方对象生成（左右手mesh + 物体mesh）。
-  - 右侧：使用 `Scatter3d` 绘制 `P_obj`，依据 `a(p)` 渐变上色（如 `Viridis`）。
-  - 两个子图使用 `make_subplots(rows=1, cols=2, specs=[[{"type":"scene"},{"type":"scene"}]] )`。
+## Dataset and Dataloader (`data/affordance_dataset.py`)
+- Load from one or multiple directories under `aff_sec_result/*/aff_sec_pairs.npy`.
+- For each sample (object, pose index):
+  - `points`: `(N,3)`
+  - `center`: `left_kps[0]` as `(3,)`
+  - `target`: `(N,)` affordance
+- Collate to tensors:
+  - Inputs: `(B, N, C_in)` with channels as designed; centers `(B, 3)` kept separately if needed.
 
-### CLI 设计
-`python visualize_affordance.py --object_name <object_name> --num <num> --k 1024 --dmax 0.05 --result_path third_party/BimanGrasp-Dataset/BimanGrasp-Dataset-Release-v1`
-- `--object_name`：物体编码（与 `.npy` 文件名一致）。
-- `--num`：使用的pose索引。
-- `--k`：物体表面点采样数量，默认 1024。
-- `--dmax`：距离归一化上限，默认 0.05。
-- `--result_path`：抓取结果 `.npy` 的目录。
+## Loss, Metrics, and Training
+- Loss: L1 (MAE) on probabilities in [0,1]; compute `pred = sigmoid(logits)` and apply `L1Loss(pred, target)`. Optionally compare with `BCEWithLogitsLoss` as a baseline.
+- Metrics: MSE, MAE, RMSE, Pearson correlation, range of predictions (as in eval.sh expects).
+- Optimizer: AdamW; LR from `train.sh` args; weight decay 1e-5; gradient clipping.
+- Scheduler: optional cosine or step decay.
 
-### 实现要点
-- 重用 `visualize_dataset.py` 中的数据解析逻辑来构造 `hand_pose`。
-- 使用 `HandModel.get_surface_points()` 直接得到手在世界坐标下的点。
-- 使用 `ObjectModel.initialize()` 后的 `surface_points_tensor[0]` 作为物体点云基础，并根据 `k` 随机下采样或重复补齐。
-- 最近邻距离计算：为避免过慢，采用 `torch.cdist`（在CPU上也可运行）。
-- 颜色映射：采用 `colorscale='Viridis'`，`marker=dict(color=affordance, colorscale='Viridis', cmin=0, cmax=1)`。
-- 清理临时变量，不写入临时文件。
+## Training/Eval Entry Points
+- Implement `train_eval/train.py` and `train_eval/evaluate.py` expected by `script/train_eval/*.sh` if not already present:
+  - `train.py`:
+    - Args: `--data_path`, `--batch_size`, `--learning_rate`, `--max_epochs`, `--focal_alpha`, `--focal_gamma`, `--output_dir`, `--save_interval`, `--device`, `--max_grad_norm`, `--weight_decay`.
+    - Load dataset(s), build model, train loop (PyTorch), save `best_model.pth` and periodic checkpoints.
+  - `evaluate.py`:
+    - Args: `--model_path`, `--data_path`, `--output_dir`, `--batch_size`, `--device`, `--visualize`, `--max_vis_samples`.
+    - Produce `predictions.npy`, `targets.npy`, `metrics.json`, and automatically do HTML visualizations similar to preprocess visualizers.
 
-### 交付物
-1. 计划文档：`dev/plan.md`（本文件）。
-2. 运行脚本：`third_party/BimanGrasp-Dataset/visualize_affordance.py`。
-3. 使用示例：
-   ```bash
-   python third_party/BimanGrasp-Dataset/visualize_affordance.py \
-     --object_name Asus_M5A99FX_PRO_R20_Motherboard_ATX_Socket_AM3 \
-     --num 0 --k 1024 --dmax 0.05 \
-     --result_path third_party/BimanGrasp-Dataset/BimanGrasp-Dataset-Release-v1
-   ```
+## PointNet2 Integration
+- Use installed ops from `third_party/Pointnet2_PyTorch/pointnet2_ops_lib` via `from pointnet2_ops.pointnet2_modules import PointnetSAModule, PointnetFPModule`.
+- Follow the data layout expected in `pointnet2_ssg_sem.py`:
+  - Input `pointcloud`: `(B, N, 3 + in_channels)` where xyz comes first.
+  - Use `_break_up_pc` to split xyz and features when reusing helper functions.
 
+## File/Code Additions
+- `models/affordance_pointnet2.py`: model class `AffordancePointNet2`.
+- `data/affordance_dataset.py`: dataset class `AffordancePairsDataset`.
+- `train_eval/train.py`: training script integrating with `script/train_eval/train.sh`.
+- `train_eval/evaluate.py`: evaluation and visualization script integrating with `eval.sh`.
+- `utils/metrics.py`: optional metrics helpers.
 
+## Minimal APIs
+- Model forward:
+  - Input: `points (B,N,3)`, `centers (B,3)` or pre-concatenated `(B,N,C_in)`.
+  - Output: `(B,N)` affordance in [0,1] (apply sigmoid inside).
+- Dataset item:
+  - Returns: `points (N,3)`, `center (3,)`, `target (N,)`.
+
+## Training Details
+- Start with N=8192; batch size from script; defaultly use `cuda` if available.
+- Normalize inputs (zero-mean per cloud) or leave raw to keep absolute scale (preferred to match grasp geometry). Keep center subtraction only in relative features.
+
+## Visualization
+- Reuse plotting approach from `preprocess/visualize_affordance.py` to color point cloud by predicted affordance and optionally overlay center.
+
+## Milestones
+1) Implement dataset and model.
+2) Implement training loop; overfit small subset to sanity-check.
+3) Implement evaluation and visualization; verify outputs saved per `eval.sh`.
+4) Tune input channels, loss, and augmentations.
 
