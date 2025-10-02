@@ -22,7 +22,9 @@ class IsaacValidator():
                  env_batch=1,
                  sim_step=100,
                  gpu=0,
-                 debug_interval=0.05):
+                 debug_interval=0.05,
+                 viewer_width=800,
+                 viewer_height=600):
 
         self.hand_friction = hand_friction
         self.obj_friction = obj_friction
@@ -81,9 +83,12 @@ class IsaacValidator():
         self.sim_params.use_gpu_pipeline = False
         self.sim = gym.create_sim(self.gpu, self.gpu, gymapi.SIM_PHYSX,
                                   self.sim_params)
+        self.viewer_width = viewer_width
+        self.viewer_height = viewer_height
+
         self.camera_props = gymapi.CameraProperties()
-        self.camera_props.width = 800
-        self.camera_props.height = 600
+        self.camera_props.width = viewer_width
+        self.camera_props.height = viewer_height
         self.camera_props.use_collision_geometry = True
 
         # set viewer
@@ -304,12 +309,7 @@ class IsaacValidator():
         return success
 
     def reset_simulator(self):
-        gym.destroy_sim(self.sim)
-        if self.has_viewer:
-            gym.destroy_viewer(self.sim)
-            self.viewer = gym.create_viewer(self.sim, self.camera_props)
-        self.sim = gym.create_sim(self.gpu, self.gpu, gymapi.SIM_PHYSX,
-                                  self.sim_params)
+        # Destroy environments before destroying the sim
         for env in self.envs:
             gym.destroy_env(env)
         self.envs = []
@@ -319,8 +319,21 @@ class IsaacValidator():
         self.obj_rigid_body_sets = []
         self.hand_asset = None
         self.obj_asset = None
+        # Destroy viewer first if present
+        if self.has_viewer and self.viewer is not None:
+            gym.destroy_viewer(self.viewer)
+            self.viewer = None
+        # Now destroy sim and recreate
+        gym.destroy_sim(self.sim)
+        self.sim = gym.create_sim(self.gpu, self.gpu, gymapi.SIM_PHYSX,
+                                  self.sim_params)
+        # Recreate viewer if needed on new sim
+        if self.has_viewer:
+            self.viewer = gym.create_viewer(self.sim, self.camera_props)
 
     def destroy(self):
+        # Destroy viewer first, then sim
+        if self.has_viewer and self.viewer is not None:
+            gym.destroy_viewer(self.viewer)
+            self.viewer = None
         gym.destroy_sim(self.sim)
-        if self.has_viewer:
-            gym.destroy_viewer(self.sim)
