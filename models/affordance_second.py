@@ -1,11 +1,12 @@
 import math
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 
 try:
     # PointNet++ ops (should be installed from third_party/Pointnet2_PyTorch)
+    from pointnet2_ops import pointnet2_utils
     from pointnet2_ops.pointnet2_modules import PointnetFPModule, PointnetSAModule
 except Exception as e:
     raise ImportError(
@@ -42,16 +43,21 @@ class AffordancePointNet2SSG(nn.Module):
         super().__init__()
 
         self.use_condition = bool(use_condition)
-        if condition_mode not in {"none", "r", "rd"}:
-            raise ValueError("condition_mode must be one of {'none','r','rd'}")
+        if condition_mode not in {"none", "r", "rd", "kp"}:
+            raise ValueError("condition_mode must be one of {'none','r','rd','kp'}")
         self.condition_mode = condition_mode
         self.use_xyz = bool(use_xyz)
 
         # Determine feature channels C from conditioning mode
         self.extra_feat_channels = self._compute_extra_channels(use_condition, condition_mode)
 
+        self.use_center_feature = bool(self.use_condition and self.condition_mode == "kp")
+        if self.use_center_feature and self.extra_feat_channels != 0:
+            raise ValueError("Keypoint feature mode should not use extra per-point channels.")
+
         # Build SA (encoder) and FP (decoder) stacks following pointnet2_ssg_sem style
         self.SA_modules = nn.ModuleList()
+        self.sa_out_channels = []
         # SA1: input channels for MLP must include xyz if use_xyz=True
         # IMPORTANT: PointnetSAModule internally concatenates xyz to features when use_xyz=True.
         # Therefore, the first MLP input channel should be ONLY the extra feature channels (C),
@@ -66,6 +72,7 @@ class AffordancePointNet2SSG(nn.Module):
                 use_xyz=self.use_xyz,
             )
         )
+        self.sa_out_channels.append(64)
         self.SA_modules.append(
             PointnetSAModule(
                 npoint=256,
@@ -75,6 +82,7 @@ class AffordancePointNet2SSG(nn.Module):
                 use_xyz=self.use_xyz,
             )
         )
+        self.sa_out_channels.append(128)
         self.SA_modules.append(
             PointnetSAModule(
                 npoint=64,
@@ -84,6 +92,7 @@ class AffordancePointNet2SSG(nn.Module):
                 use_xyz=self.use_xyz,
             )
         )
+        self.sa_out_channels.append(256)
         self.SA_modules.append(
             PointnetSAModule(
                 npoint=16,
@@ -93,6 +102,7 @@ class AffordancePointNet2SSG(nn.Module):
                 use_xyz=self.use_xyz,
             )
         )
+        self.sa_out_channels.append(512)
 
         # FP stack mirrors pointnet2_ssg_sem.py
         self.FP_modules = nn.ModuleList()
@@ -104,8 +114,24 @@ class AffordancePointNet2SSG(nn.Module):
         self.FP_modules.append(PointnetFPModule(mlp=[512 + 256, 256, 256]))
 
         # Per-point prediction head (logits)
+        self.point_feature_channels = 128
+        head_in_channels = self.point_feature_channels
+
+        if self.use_center_feature:
+            center_total_channels = sum(self.sa_out_channels) + self.point_feature_channels
+            self.center_out_channels = 128
+            self.center_fusion = nn.Sequential(
+                nn.Conv1d(center_total_channels, 256, kernel_size=1, bias=False),
+                nn.BatchNorm1d(256),
+                nn.ReLU(inplace=True),
+                nn.Conv1d(256, self.center_out_channels, kernel_size=1, bias=False),
+                nn.BatchNorm1d(self.center_out_channels),
+                nn.ReLU(inplace=True),
+            )
+            head_in_channels += self.center_out_channels
+
         self.head = nn.Sequential(
-            nn.Conv1d(128, 128, kernel_size=1, bias=False),
+            nn.Conv1d(head_in_channels, 128, kernel_size=1, bias=False),
             nn.BatchNorm1d(128),
             nn.ReLU(inplace=True),
             nn.Conv1d(128, 1, kernel_size=1),
@@ -119,6 +145,8 @@ class AffordancePointNet2SSG(nn.Module):
             return 3
         if condition_mode == "rd":
             return 4
+        if condition_mode == "kp":
+            return 0
         # Should not reach here due to validation
         return 0
 
@@ -150,7 +178,7 @@ class AffordancePointNet2SSG(nn.Module):
         Returns:
             features: (B, N, C) or None
         """
-        if mode == "none":
+        if mode == "none" or mode == "kp":
             return None
         # Compute r = p - c
         r = points_xyz - centers_xyz.unsqueeze(1)  # (B, N, 3)
@@ -160,23 +188,56 @@ class AffordancePointNet2SSG(nn.Module):
         d = torch.norm(r, dim=-1, keepdim=True)  # (B, N, 1)
         return torch.cat([r, d], dim=-1)  # (B, N, 4)
 
-    def _forward_with_pointcloud(self, pointcloud: torch.Tensor) -> torch.Tensor:
+    def _forward_with_pointcloud(
+        self,
+        pointcloud: torch.Tensor,
+        centers_xyz: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         """Forward given a single (B, N, 3 + C) tensor as in the library examples."""
         xyz, features = self._break_up_pc(pointcloud)
 
         l_xyz = [xyz]
-        l_features: list = [features]
+        l_features: List[Optional[torch.Tensor]] = [features]
+        sa_features_at_center: List[torch.Tensor] = [] if self.use_center_feature else []
+        center_xyz: Optional[torch.Tensor] = None
+        if self.use_center_feature:
+            if centers_xyz is None:
+                raise ValueError("centers_xyz must be provided when condition_mode='kp'.")
+            center_xyz = centers_xyz.unsqueeze(1)
+
         for i in range(len(self.SA_modules)):
             li_xyz, li_features = self.SA_modules[i](l_xyz[i], l_features[i])
             l_xyz.append(li_xyz)
             l_features.append(li_features)
+
+            if self.use_center_feature and center_xyz is not None:
+                assert li_xyz is not None and li_features is not None
+                dist, idx = pointnet2_utils.three_nn(center_xyz, li_xyz)
+                weight = 1.0 / (dist + 1e-8)
+                weight = weight / torch.sum(weight, dim=-1, keepdim=True)
+                center_feat_cur = pointnet2_utils.three_interpolate(li_features, idx, weight)
+                sa_features_at_center.append(center_feat_cur)
 
         for i in range(-1, -(len(self.FP_modules) + 1), -1):
             l_features[i - 1] = self.FP_modules[i](
                 l_xyz[i - 1], l_xyz[i], l_features[i - 1], l_features[i]
             )
 
-        logits = self.head(l_features[0])  # (B, 1, N)
+        point_level_features = l_features[0]
+
+        if self.use_center_feature:
+            assert center_xyz is not None
+            dist_low, idx_low = pointnet2_utils.three_nn(center_xyz, l_xyz[0])
+            weight_low = 1.0 / (dist_low + 1e-8)
+            weight_low = weight_low / torch.sum(weight_low, dim=-1, keepdim=True)
+            center_feat_low = pointnet2_utils.three_interpolate(point_level_features, idx_low, weight_low)
+            center_features = torch.cat(sa_features_at_center + [center_feat_low], dim=1)
+            center_features = self.center_fusion(center_features)
+            center_features = center_features.mean(dim=-1, keepdim=True)
+            center_features = center_features.expand(-1, -1, point_level_features.shape[-1])
+            point_level_features = torch.cat([point_level_features, center_features], dim=1)
+
+        logits = self.head(point_level_features)  # (B, 1, N)
         return logits
 
     def forward(
@@ -215,6 +276,8 @@ class AffordancePointNet2SSG(nn.Module):
         else:
             pointcloud = torch.cat([points_or_pointcloud, extra], dim=-1)
 
+        if cond_mode == "kp":
+            return self._forward_with_pointcloud(pointcloud, centers_xyz=centers_xyz)
         return self._forward_with_pointcloud(pointcloud)
 
 

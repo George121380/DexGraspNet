@@ -1,5 +1,5 @@
 {
-    "data_path": "/media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/aff_sec_result/11pro_SL_TRX_FG/aff_sec_pairs.npy",
+    "data_path": "/media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/preprocess_data/aff_sec_result/11pro_SL_TRX_FG/aff_sec_pairs.npy",
     "output_dir": "/media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/checkpoints_default",
     "batch_size": 4,
     "learning_rate": 0.001,

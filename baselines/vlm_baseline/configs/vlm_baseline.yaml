@@ -1,0 +1,26 @@
+# Default config for VLM baseline (two points: left/right)
+
+render:
+  dataset_dir: third_party/BimanGrasp-Dataset/Object-Release-v1
+  out_dir: data/vlm_renders
+  views: 12
+  width: 640
+  height: 480
+  fov_deg: 60.0
+  up: [0.0, 0.0, 1.0]
+  radius_scale: 2.0
+
+query:
+  model: gpt-5-vision
+  max_images: 4
+  two_points_only: true
+  outputs_root: outputs/vlm_baseline
+
+backproject:
+  renders: data/vlm_renders
+  vlm_json_root: outputs/vlm_baseline
+  fused_key: fused_3d.json
+
+evaluate:
+  fused_root: outputs/vlm_baseline
+

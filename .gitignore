@@ -1,3 +1,4 @@
+# Added by assistant to keep repo light
 # Ignore dev and third_party folders
 dev/
 
@@ -92,3 +93,20 @@ models/saved/
 *.pkl
 train_eval/checkpoints_all/
 train_eval/evaluation_results/
+
+# Additional ignores for large datasets
+data/**
+!data/preprocess_data/.gitkeep
+outputs/**
+third_party/**/data/**
+third_party/**/asset_process/data/**
+*.obj
+*.zip
+*.tar
+*.tar.gz
+*.stl
+*.ply
+*.glb
+*.gltf
+train_eval/checkpoints_all/**
+train_eval/evaluation_results/**

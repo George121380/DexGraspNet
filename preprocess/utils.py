@@ -13,9 +13,6 @@ if PROJ_ROOT not in sys.path:
 if THIRD_PARTY_DIR not in sys.path:
     sys.path.append(THIRD_PARTY_DIR)
 
-from hand_model import HandModel
-from object_model import ObjectModel
-
 
 def get_grasp_center_point(
     object_points: torch.Tensor,
@@ -353,6 +350,10 @@ def load_models_and_data(object_name: str, result_path: str, device: str = 'cpu'
     left_qpos = data_dict['qpos_left']
     right_hand_pose = build_hand_pose_tensor(right_qpos, device)
     left_hand_pose = build_hand_pose_tensor(left_qpos, device)
+
+    # Lazy imports to avoid heavy deps on call sites that don't need them
+    from hand_model import HandModel
+    from object_model import ObjectModel
 
     left_hand_model = HandModel(
         mjcf_path=left_mjcf, mesh_path=meshes_dir,
