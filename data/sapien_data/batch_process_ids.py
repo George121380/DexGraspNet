@@ -3,10 +3,10 @@ Batch download SAPIEN PartNet-Mobility objects by IDs, convert to watertight mes
 and render preview images (and optional HTML viewers).
 
 Usage examples:
-  conda run -n urdf2mesh python data/sapien_data/batch_process_ids.py \
-    --ids 3386,3393,4094,4529,4533,4541,4542,4552,4562,4563,4564,4566,4571,4574,4576,4578,4586,4589,4590,4592,4594,4627,4628,4633,4681,4853,5050,5306,5477 \
+  conda run -n urdf2mesh python batch_process_ids.py \
+    --ids 100031,101305,101315,102714,102715,102720,102724,102726,102732,102736,102761,102763 \
     --dataset_root /media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/sapien_data/partnet-mobility-dataset \
-    --resolution 256 --html
+    --resolution 64 --html
 
   conda run -n urdf2mesh python data/sapien_data/batch_process_ids.py \
     --ids_file /media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/sapien_data/obj_list.txt \
@@ -67,12 +67,30 @@ def ensure_symlink(src_dir: str, dst_dir: str) -> str:
     return dst_dir
 
 
-def run_convert(object_dir: str, output_mesh_path: str, resolution_candidates: List[int]) -> str:
+def run_convert(
+    object_dir: str,
+    output_mesh_path: str,
+    resolution_candidates: List[int],
+    smooth_iterations: int = 10,
+    taubin_lambda: float = 0.5,
+    taubin_nu: float = -0.53,
+    subdivide_iterations: int = 0,
+    target_edge_length: float = None,
+) -> str:
     from data.sapien_data.sapien_data_to_watertight_mesh import sapien_data_to_watertight_mesh
     last_err = None
     for r in resolution_candidates:
         try:
-            return sapien_data_to_watertight_mesh(object_dir, output_mesh_path, resolution=r)
+            return sapien_data_to_watertight_mesh(
+                object_dir,
+                output_mesh_path,
+                resolution=r,
+                smooth_iterations=int(smooth_iterations),
+                taubin_lambda=float(taubin_lambda),
+                taubin_nu=float(taubin_nu),
+                subdivide_iterations=int(subdivide_iterations),
+                target_edge_length=(None if target_edge_length in (None, "", "None") else float(target_edge_length)),
+            )
         except Exception as e:
             last_err = e
             continue
@@ -88,7 +106,18 @@ def run_preview(mesh_path: str, out_png: str, out_html: str = None) -> None:
     subprocess.run(cmd, check=True)
 
 
-def process_one(object_id: int, dataset_root: str, token: str, res_list: List[int], with_html: bool) -> None:
+def process_one(
+    object_id: int,
+    dataset_root: str,
+    token: str,
+    res_list: List[int],
+    with_html: bool,
+    smooth_iterations: int,
+    taubin_lambda: float,
+    taubin_nu: float,
+    subdivide_iterations: int,
+    target_edge_length: float,
+) -> None:
     # Resolve object directory path
     dst_dir = os.path.join(dataset_root, str(object_id))
     if SAPIEN_OK and token:
@@ -113,7 +142,16 @@ def process_one(object_id: int, dataset_root: str, token: str, res_list: List[in
     html_path = os.path.join(wt_dir, 'preview.html') if with_html else None
 
     if not os.path.isfile(wt_mesh):
-        out = run_convert(dst_dir, wt_mesh, res_list)
+        out = run_convert(
+            dst_dir,
+            wt_mesh,
+            res_list,
+            smooth_iterations=smooth_iterations,
+            taubin_lambda=taubin_lambda,
+            taubin_nu=taubin_nu,
+            subdivide_iterations=subdivide_iterations,
+            target_edge_length=target_edge_length,
+        )
         print(f"[OK] {object_id} watertight -> {out}")
     else:
         print(f"[SKIP] {object_id} watertight exists: {wt_mesh}")
@@ -133,6 +171,11 @@ def main():
     parser.add_argument('--resolution', type=int, default=256, help='Preferred voxel resolution (fallback: 128,64).')
     parser.add_argument('--token', type=str, default='', help='SAPIEN PartNet-Mobility token (overrides env SAPIEN_TOKEN).')
     parser.add_argument('--html', action='store_true', help='Also export interactive HTML.')
+    parser.add_argument('--smooth-iters', type=int, default=10, help='Surface smoothing iterations (0 to disable).')
+    parser.add_argument('--taubin-lambda', type=float, default=0.5, help='Taubin smoothing lambda (passband).')
+    parser.add_argument('--taubin-nu', type=float, default=-0.53, help='Taubin smoothing nu (stopband).')
+    parser.add_argument('--subdivide-iters', type=int, default=0, help='Uniform subdivision iterations (0 to disable).')
+    parser.add_argument('--target-edge-length', type=float, default=None, help='Optional target max edge length for remeshing.')
     args = parser.parse_args()
 
     token = args.token or os.environ.get('SAPIEN_TOKEN', '')
@@ -153,7 +196,18 @@ def main():
     res_list = [int(args.resolution), 128, 64]
     for oid in ids:
         try:
-            process_one(oid, args.dataset_root, token, res_list, args.html)
+            process_one(
+                oid,
+                args.dataset_root,
+                token,
+                res_list,
+                args.html,
+                smooth_iterations=int(getattr(args, 'smooth_iters', 10)),
+                taubin_lambda=float(getattr(args, 'taubin_lambda', 0.5)),
+                taubin_nu=float(getattr(args, 'taubin_nu', -0.53)),
+                subdivide_iterations=int(getattr(args, 'subdivide_iters', 0)),
+                target_edge_length=(None if getattr(args, 'target_edge_length', None) in (None, "", "None") else float(args.target_edge_length)),
+            )
         except Exception as e:
             print(f"[ERR] {oid} failed: {e}")
 

@@ -232,7 +232,91 @@ def _to_watertight(mesh: tm.Trimesh, resolution: int = 256) -> tm.Trimesh:
     return wt_mesh
 
 
-def sapien_data_to_watertight_mesh(object_dir: str, output_mesh_path: str, resolution: int = 256) -> str:
+def _try_subdivide(mesh: tm.Trimesh, target_edge_length: Optional[float] = None, iterations: int = 0) -> tm.Trimesh:
+    """
+    Optionally refine mesh by subdividing to increase vertex density which helps smoothing.
+    Tries to use trimesh.remesh.subdivide_to_size when available, otherwise falls back
+    to uniform subdivision of all faces for a small number of iterations.
+    """
+    try:
+        import trimesh.remesh as remesh  # local import to avoid hard dependency at import-time
+    except Exception:
+        return mesh
+
+    refined = mesh
+    # Prefer target-edge-length driven remesh if requested and available
+    if target_edge_length is not None:
+        try:
+            fn = getattr(remesh, 'subdivide_to_size', None)
+            if callable(fn):
+                refined = fn(refined, max_edge=target_edge_length)  # type: ignore[arg-type]
+        except Exception:
+            pass
+
+    # Optional fixed iteration uniform subdivision (mild)
+    if iterations and iterations > 0:
+        for _ in range(int(iterations)):
+            try:
+                fn2 = getattr(remesh, 'subdivide', None)
+                if callable(fn2):
+                    new_vertices, new_faces = fn2(refined.vertices, refined.faces)
+                    refined = tm.Trimesh(vertices=new_vertices, faces=new_faces, process=False)
+                else:
+                    break
+            except Exception:
+                break
+
+    return refined
+
+
+def _try_smooth_in_place(mesh: tm.Trimesh, iterations: int = 0, taubin_lambda: float = 0.5, taubin_nu: float = -0.53) -> None:
+    """
+    Apply in-place smoothing if requested. Prefer Taubin (low-shrinkage). Fallback to
+    Humphrey or Laplacian if Taubin is unavailable in this trimesh version.
+    """
+    if iterations is None or int(iterations) <= 0:
+        return
+    try:
+        from trimesh import smoothing as tms
+    except Exception:
+        return
+
+    iters = int(max(0, iterations))
+    # Try Taubin first
+    fn = getattr(tms, 'filter_taubin', None)
+    if callable(fn):
+        try:
+            fn(mesh, lamb=float(taubin_lambda), nu=float(taubin_nu), iterations=iters)
+            return
+        except Exception:
+            pass
+    # Fallback: Humphrey's method
+    fn = getattr(tms, 'filter_humphrey', None)
+    if callable(fn):
+        try:
+            fn(mesh, alpha=0.1, beta=0.1, iterations=iters)
+            return
+        except Exception:
+            pass
+    # Last resort: simple Laplacian
+    fn = getattr(tms, 'filter_laplacian', None)
+    if callable(fn):
+        try:
+            fn(mesh, lamb=0.5, iterations=iters)
+        except Exception:
+            pass
+
+
+def sapien_data_to_watertight_mesh(
+    object_dir: str,
+    output_mesh_path: str,
+    resolution: int = 256,
+    smooth_iterations: int = 0,
+    taubin_lambda: float = 0.5,
+    taubin_nu: float = -0.53,
+    subdivide_iterations: int = 0,
+    target_edge_length: Optional[float] = None,
+) -> str:
     """
     Build a watertight mesh for a SAPIEN (PartNet-Mobility) object directory.
 
@@ -271,6 +355,30 @@ def sapien_data_to_watertight_mesh(object_dir: str, output_mesh_path: str, resol
     merged = _merge_meshes(meshes)
     wt = _to_watertight(merged, resolution=resolution)
 
+    # Optional refinement and smoothing to improve surface quality while preserving watertightness
+    original = wt.copy()
+    try:
+        refined = _try_subdivide(wt, target_edge_length=target_edge_length, iterations=subdivide_iterations)
+        if refined is not wt:
+            wt = refined
+        _try_smooth_in_place(wt, iterations=smooth_iterations, taubin_lambda=taubin_lambda, taubin_nu=taubin_nu)
+        # Light cleanup
+        try:
+            faces_keep = getattr(wt, 'nondegenerate_faces', None)
+            if callable(faces_keep):
+                wt.update_faces(faces_keep())
+            else:
+                wt.remove_degenerate_faces()
+            wt.remove_unreferenced_vertices()
+            wt.merge_vertices()
+        except Exception:
+            pass
+        # Ensure watertight; if broken, revert to original marching-cubes output
+        if not bool(wt.is_watertight):
+            wt = original
+    except Exception:
+        wt = original
+
     os.makedirs(os.path.dirname(os.path.abspath(output_mesh_path)), exist_ok=True)
     wt.export(output_mesh_path)
     return output_mesh_path
@@ -281,12 +389,26 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument('--input_dir', type=str, required=True, help='Path to the SAPIEN object directory.')
     parser.add_argument('--output', type=str, required=True, help='Output mesh path (.obj/.stl/.ply).')
     parser.add_argument('--resolution', type=int, default=256, help='Voxel resolution along the longest side.')
+    parser.add_argument('--smooth-iters', type=int, default=10, help='Surface smoothing iterations (0 to disable).')
+    parser.add_argument('--taubin-lambda', type=float, default=0.5, help='Taubin smoothing lambda (passband).')
+    parser.add_argument('--taubin-nu', type=float, default=-0.53, help='Taubin smoothing nu (stopband).')
+    parser.add_argument('--subdivide-iters', type=int, default=0, help='Uniform subdivision iterations (0 to disable).')
+    parser.add_argument('--target-edge-length', type=float, default=None, help='Optional target max edge length for remeshing.')
     return parser.parse_args(argv)
 
 
 def main(argv: Optional[List[str]] = None) -> None:
     args = _parse_args(argv)
-    out_path = sapien_data_to_watertight_mesh(args.input_dir, args.output, resolution=args.resolution)
+    out_path = sapien_data_to_watertight_mesh(
+        args.input_dir,
+        args.output,
+        resolution=args.resolution,
+        smooth_iterations=int(getattr(args, 'smooth_iters', 10)),
+        taubin_lambda=float(getattr(args, 'taubin_lambda', 0.5)),
+        taubin_nu=float(getattr(args, 'taubin_nu', -0.53)),
+        subdivide_iterations=int(getattr(args, 'subdivide_iters', 0)),
+        target_edge_length=(None if getattr(args, 'target_edge_length', None) in (None, "None", "") else float(args.target_edge_length)),
+    )
     print(f"[OK] Watertight mesh saved to: {out_path}")
 
 
