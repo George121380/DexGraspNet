@@ -21,6 +21,7 @@ import os
 import sys
 import argparse
 import subprocess
+import json
 from typing import List
 
 PROJ_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,6 +57,40 @@ def read_ids_file(path: str) -> List[int]:
                 out.append(int(s))
             except Exception:
                 continue
+    return sorted(list(set(out)))
+
+
+def parse_categories(names_str: str) -> List[str]:
+    parts = names_str.replace('\n', ' ').replace('\t', ' ').replace(',', ' ').split()
+    out: List[str] = []
+    for p in parts:
+        s = p.strip()
+        if s:
+            out.append(s)
+    # normalize to lower for matching; keep unique
+    out = [s.lower() for s in out]
+    return sorted(list(set(out)))
+
+
+def read_ids_from_json(path: str, categories: List[str]) -> List[int]:
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    # normalize keys to lower for case-insensitive matching
+    key_to_ids = {str(k).lower(): v for k, v in data.items()}
+    out: List[int] = []
+    missing: List[str] = []
+    for c in categories:
+        ids = key_to_ids.get(c.lower())
+        if isinstance(ids, list):
+            for x in ids:
+                try:
+                    out.append(int(x))
+                except Exception:
+                    continue
+        else:
+            missing.append(c)
+    if missing:
+        raise KeyError(f"Categories not found in JSON: {', '.join(missing)}")
     return sorted(list(set(out)))
 
 
@@ -167,6 +202,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ids', type=str, default=None, help='Comma/space separated IDs, e.g., "3386,3393 4094".')
     parser.add_argument('--ids_file', type=str, default=None, help='Text file with one ID per line.')
+    parser.add_argument('--ids_json', type=str, default=None, help='JSON mapping of categories to ID arrays.')
+    parser.add_argument('--category', type=str, default=None, help='Category name(s) in ids_json (comma/space separated).')
     parser.add_argument('--dataset_root', type=str, required=True, help='Root for dataset objects (<root>/<ID>/...).')
     parser.add_argument('--resolution', type=int, default=256, help='Preferred voxel resolution (fallback: 128,64).')
     parser.add_argument('--token', type=str, default='', help='SAPIEN PartNet-Mobility token (overrides env SAPIEN_TOKEN).')
@@ -188,9 +225,12 @@ def main():
         ids.extend(parse_ids(args.ids))
     if args.ids_file:
         ids.extend(read_ids_file(args.ids_file))
+    if args.ids_json and args.category:
+        cats = parse_categories(args.category)
+        ids.extend(read_ids_from_json(args.ids_json, cats))
     ids = sorted(list(set(ids)))
     if not ids:
-        print('No IDs specified. Use --ids or --ids_file.', file=sys.stderr)
+        print('No IDs specified. Use --ids, --ids_file, or --ids_json with --category.', file=sys.stderr)
         sys.exit(1)
 
     res_list = [int(args.resolution), 128, 64]
