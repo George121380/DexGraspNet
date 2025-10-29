@@ -6,11 +6,13 @@ Usage examples:
   conda run -n urdf2mesh python batch_process_ids.py \
     --ids 100031,101305,101315,102714,102715,102720,102724,102726,102732,102736,102761,102763 \
     --dataset_root /media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/sapien_data/partnet-mobility-dataset \
-    --resolution 64 --html
+    --resolution 64 --smooth-iters 15 --html
 
-  conda run -n urdf2mesh python data/sapien_data/batch_process_ids.py \
-    --ids_file /media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/sapien_data/obj_list.txt \
-    --dataset_root /media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/sapien_data/partnet-mobility-dataset
+    python data/sapien_data/batch_process_ids.py \
+        --ids_json data/sapien_data/obj_list.json \
+        --category kettle \
+        --dataset_root /media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/sapien_data/partnet-mobility-dataset \
+        --resolution 256 --smooth-iters 15 --html
 
 Notes:
 - Comments are in English.
@@ -22,6 +24,7 @@ import sys
 import argparse
 import subprocess
 import json
+import shutil
 from typing import List
 
 PROJ_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -94,6 +97,30 @@ def read_ids_from_json(path: str, categories: List[str]) -> List[int]:
     return sorted(list(set(out)))
 
 
+def build_id_to_category_from_json(path: str, categories: List[str]) -> dict:
+    """
+    Build a mapping from object ID to category name (as provided in categories list),
+    using the ids_json file. If an ID exists in multiple categories, the first
+    category in the provided list takes precedence.
+    """
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    key_to_ids = {str(k).lower(): v for k, v in data.items()}
+    id_to_cat: dict = {}
+    for c in categories:
+        ids = key_to_ids.get(c.lower(), [])
+        if not isinstance(ids, list):
+            continue
+        for x in ids:
+            try:
+                oid = int(x)
+            except Exception:
+                continue
+            if oid not in id_to_cat:
+                id_to_cat[oid] = c  # use the category name as provided by user (normalized lower)
+    return id_to_cat
+
+
 def ensure_symlink(src_dir: str, dst_dir: str) -> str:
     os.makedirs(os.path.dirname(dst_dir), exist_ok=True)
     if os.path.islink(dst_dir) or os.path.exists(dst_dir):
@@ -152,6 +179,8 @@ def process_one(
     taubin_nu: float,
     subdivide_iterations: int,
     target_edge_length: float,
+    copy_root: str,
+    category_for_id: str,
 ) -> None:
     # Resolve object directory path
     dst_dir = os.path.join(dataset_root, str(object_id))
@@ -197,6 +226,20 @@ def process_one(
     except Exception as e:
         print(f"[WARN] preview failed for {object_id}: {e}")
 
+    # Copy watertight mesh to raw_meshes/<category>/<ID>.obj
+    try:
+        dst_root = copy_root
+        if not os.path.isabs(dst_root):
+            dst_root = os.path.join(PROJ_ROOT, dst_root)
+        sub = category_for_id if category_for_id else 'misc'
+        dst_dir = os.path.join(dst_root, sub)
+        os.makedirs(dst_dir, exist_ok=True)
+        dst_path = os.path.join(dst_dir, f"{object_id}.obj")
+        shutil.copyfile(wt_mesh, dst_path)
+        print(f"[COPY] {object_id} -> {dst_path}")
+    except Exception as e:
+        print(f"[WARN] copy failed for {object_id}: {e}")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -213,6 +256,9 @@ def main():
     parser.add_argument('--taubin-nu', type=float, default=-0.53, help='Taubin smoothing nu (stopband).')
     parser.add_argument('--subdivide-iters', type=int, default=0, help='Uniform subdivision iterations (0 to disable).')
     parser.add_argument('--target-edge-length', type=float, default=None, help='Optional target max edge length for remeshing.')
+    # Copy settings
+    default_copy_root = os.path.join('data', 'sapien_data', 'raw_meshes')
+    parser.add_argument('--copy-root', type=str, default=default_copy_root, help='Root to copy watertight meshes into (default: data/sapien_data/raw_meshes).')
     args = parser.parse_args()
 
     token = args.token or os.environ.get('SAPIEN_TOKEN', '')
@@ -233,6 +279,15 @@ def main():
         print('No IDs specified. Use --ids, --ids_file, or --ids_json with --category.', file=sys.stderr)
         sys.exit(1)
 
+    # Build mapping from ID to category (only when using ids_json & category)
+    id_to_cat = {}
+    if args.ids_json and args.category:
+        cats = parse_categories(args.category)
+        try:
+            id_to_cat = build_id_to_category_from_json(args.ids_json, cats)
+        except Exception:
+            id_to_cat = {}
+
     res_list = [int(args.resolution), 128, 64]
     for oid in ids:
         try:
@@ -247,6 +302,8 @@ def main():
                 taubin_nu=float(getattr(args, 'taubin_nu', -0.53)),
                 subdivide_iterations=int(getattr(args, 'subdivide_iters', 0)),
                 target_edge_length=(None if getattr(args, 'target_edge_length', None) in (None, "", "None") else float(args.target_edge_length)),
+                copy_root=str(getattr(args, 'copy_root')),
+                category_for_id=(id_to_cat.get(oid, 'misc')),
             )
         except Exception as e:
             print(f"[ERR] {oid} failed: {e}")
