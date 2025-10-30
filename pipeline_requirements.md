@@ -1,0 +1,9 @@
+
+我的整个pipeline需要实现输入一个
+
+我的整个pipeline希望包含四个部分：
+1. 两个affordance model依次预测出两个keypoints（model输出affordance map，然后根据value采样得到keypoints）
+2. 以点云和keypoints作为输入，pose generator生成两个手的初始pose
+3. 用2中预测的初始pose初始化optimizer(bimangrasp)，进行100steps的优化，得到最终结果
+
+在整个pipeline中允许我做好每一步的可视化

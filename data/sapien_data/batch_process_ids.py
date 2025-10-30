@@ -8,11 +8,11 @@ Usage examples:
     --dataset_root /media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/sapien_data/partnet-mobility-dataset \
     --resolution 64 --smooth-iters 15 --html
 
-    python data/sapien_data/batch_process_ids.py \
-        --ids_json data/sapien_data/obj_list.json \
-        --category kettle \
+    python batch_process_ids.py \
+        --ids_json obj_list.json \
+        --category clocks \
         --dataset_root /media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/data/sapien_data/partnet-mobility-dataset \
-        --resolution 256 --smooth-iters 15 --html
+        --resolution 64 --smooth-iters 15 --html
 
 Notes:
 - Comments are in English.

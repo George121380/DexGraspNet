@@ -8,12 +8,17 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+# Disable cuDNN to match training behavior and avoid CUDNN issues on older builds
+torch.backends.cudnn.enabled = False
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+
 CUR_DIR = os.path.dirname(__file__)
 REPO_ROOT = os.path.dirname(CUR_DIR)
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from models.affordance_pointnet2 import AffordancePointNet2SSG
+from models.affordance_second import AffordancePointNet2SSG
 from data.affordance_dataset import AffordancePairsDataset
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
@@ -232,6 +237,12 @@ def main():
     parser.add_argument('--visualize', action='store_true')
     parser.add_argument('--max_vis_samples', type=int, default=5)
     parser.add_argument('--pair_idx', type=int, default=None, help='if set, evaluate/visualize only this pair index')
+    parser.add_argument('--num_workers', type=int, default=0,
+                        help='DataLoader worker processes (0 for main process)')
+    parser.add_argument('--overview', action='store_true',
+                        help='Also generate overview page(s) summarizing many samples')
+    parser.add_argument('--overview_max_vis', type=int, default=None,
+                        help='Max samples to include in overview; defaults to --max_vis_samples')
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -246,7 +257,7 @@ def main():
         shuffle_points=False,
         only_pair_idx=args.pair_idx,
     )
-    loader = DataLoader(dset, batch_size=args.batch_size, shuffle=False, num_workers=0, pin_memory=True)
+    loader = DataLoader(dset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
     # Load model
     ckpt = torch.load(args.model_path, map_location='cpu')
@@ -274,8 +285,9 @@ def main():
     if args.visualize:
         vis_dir = os.path.join(args.output_dir, 'visualizations')
         _save_visualizations(model, loader, device, vis_dir, max_vis=args.max_vis_samples)
-        # Also create an overview page with many samples on one long page
-        _save_overview(model, loader, device, vis_dir, max_vis=9999)
+        if args.overview:
+            ov_max = args.overview_max_vis if args.overview_max_vis is not None else args.max_vis_samples
+            _save_overview(model, loader, device, vis_dir, max_vis=int(ov_max))
 
 
 if __name__ == '__main__':
