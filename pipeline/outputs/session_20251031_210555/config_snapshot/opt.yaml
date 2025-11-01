@@ -1,0 +1,39 @@
+optimizer:
+  steps: 1000
+  gpu: "0"
+  step_size: 0.0005
+
+paths:
+  # BimanGrasp-Optimization root
+  biman_root: "${paths.repo_root}/third_party/BimanGrasp-Generation/BimanGrasp-Optimization"
+  # Use pipeline input meshes for optimization to match the pc input
+  data_root: "${paths.repo_root}/pipeline/pipeline_input"
+  experiments_base: "${paths.repo_root}/third_party/BimanGrasp-Generation/data/experiments"
+  right_hand_mjcf: "${paths.repo_root}/third_party/BimanGrasp-Generation/BimanGrasp-Optimization/mjcf/right_shadow_hand.xml"
+  left_hand_mjcf: "${paths.repo_root}/third_party/BimanGrasp-Generation/BimanGrasp-Optimization/mjcf/left_shadow_hand.xml"
+  mesh_path: "${paths.repo_root}/third_party/BimanGrasp-Generation/BimanGrasp-Optimization/mjcf/meshes"
+  right_contact_points: "${paths.repo_root}/third_party/BimanGrasp-Generation/BimanGrasp-Optimization/mjcf/right_hand_contact_points.json"
+  left_contact_points: "${paths.repo_root}/third_party/BimanGrasp-Generation/BimanGrasp-Optimization/mjcf/left_hand_contact_points.json"
+  penetration_points: "${paths.repo_root}/third_party/BimanGrasp-Generation/BimanGrasp-Optimization/mjcf/penetration_points.json"
+
+objects:
+  # Map your input object name to BimanGrasp object code
+  # e.g., kettle_100031: Cole_Hardware_Dishtowel_Multicolors
+  object_code_map:
+    "100015": "100015/processed_mesh"
+
+io:
+  # Output filenames
+  optimized_npz_name: optimized_pose.npz
+  optimized_json_name: optimized_pose.json
+
+visualization:
+  enable: true
+  frame_stride: 10
+  width: 900
+  height: 900
+  show_contacts: false
+  background: "#E2F0D9"
+  fps: 20
+  video_name: optimization.mp4
+
