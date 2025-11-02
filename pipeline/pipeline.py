@@ -447,6 +447,98 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             batch = all_pairs[start:start + pairs_per_batch]
             logger.info(f"[Batch] Processing pairs {batch}")
 
+            if mp_cfg.get('process_mode', 'multiprocess') == 'batched':
+                # One process handling all entries in this batch
+                entry_list = []
+                suffixes = []
+                for (i, j) in batch:
+                    for k in range(max(1, random_twist_count)):
+                        suffix = f"{i:02d}_{j:02d}_{k:02d}"
+                        dex_entry_path = os.path.join(obj_dir, f'dexgrasp_entry_{suffix}.npy')
+                        if not os.path.exists(dex_entry_path):
+                            continue
+                        entry_list.append(dex_entry_path)
+                        suffixes.append(suffix)
+                if not entry_list:
+                    continue
+                cmd = [
+                    'conda', 'run', '-n', cfg['envs']['optimizer_env'], 'python', script,
+                    '--biman_root', cfg['paths']['third_party']['bimangrasp'],
+                    '--data_root', cfg['opt']['paths']['data_root'],
+                    '--object_code', object_code,
+                    '--steps', str(total_steps),
+                    '--gpu', cfg['opt']['optimizer']['gpu'] if 'optimizer' in cfg['opt'] else '0',
+                    '--out_dir', obj_dir,
+                    '--suffixes', ','.join(suffixes),
+                ]
+                for pth in entry_list:
+                    cmd.extend(['--entry_multi', pth])
+                if obj_scale_val is not None:
+                    cmd.extend(['--object_scale', str(float(obj_scale_val))])
+                stdout_path = os.path.join(logs_dir, f'biman_opt_batch_{start:04d}_stdout.txt')
+                stderr_path = os.path.join(logs_dir, f'biman_opt_batch_{start:04d}_stderr.txt')
+                progress_file = os.path.join(logs_dir, f'biman_opt_progress_batch_{start:04d}.txt')
+                cmd.extend(['--progress_file', progress_file])
+                env = {**base_env, 'PIPELINE_PROGRESS_FILE': progress_file}
+                logger.info(f"[Batch] Launching single-process batched optimizer for {len(entry_list)} entries ...")
+                import subprocess
+                with open(stdout_path, 'w') as f_out, open(stderr_path, 'w') as f_err:
+                    rc = subprocess.call(cmd, stdout=f_out, stderr=f_err, env=env, text=True)
+                if rc != 0:
+                    raise RuntimeError(f"Batched optimization failed for batch start={start}: rc={rc}")
+                # Post-process results per suffix
+                for suffix in suffixes:
+                    out_json = os.path.join(obj_dir, f"optimized_{suffix}.json")
+                    dex_entry_path = os.path.join(obj_dir, f'dexgrasp_entry_{suffix}.npy')
+                    left_kp_path = os.path.join(obj_dir, f'kpleft_{suffix[:2]}.npy')
+                    right_kp_path = os.path.join(obj_dir, f'kpright_{suffix[:2]}_{suffix[3:5]}.npy')
+                    if os.path.exists(out_json):
+                        data = json_load(out_json)
+                        try:
+                            dex_arr = np.load(dex_entry_path, allow_pickle=True)
+                            dex_entry = dex_arr[0].item() if hasattr(dex_arr[0], 'item') else dex_arr[0]
+                            scale_val = float(dex_entry.get('scale', 1.0))
+                            left_st = dex_entry.get('qpos_left', {})
+                            right_st = dex_entry.get('qpos_right', {})
+                        except Exception:
+                            scale_val = float(load_default_scale(
+                                obj_name,
+                                vis_cfg.get('ref_scale_dir', ''),
+                                vis_cfg.get('ref_scale_file', ''),
+                                vis_cfg.get('ref_scale_value', None),
+                            ))
+                            left_st, right_st = {}, {}
+                        opt_entry = build_bimanual_entry(
+                            data['left_qpos'],
+                            data['right_qpos'],
+                            scale_val,
+                            left_st=left_st,
+                            right_st=right_st,
+                        )
+                        opt_entry_path = os.path.join(obj_dir, f'optimized_pose_{suffix}.npy')
+                        save_bimanual_entry(opt_entry_path, opt_entry)
+                        opt_entries_all.append(opt_entry)
+                        try:
+                            _render_bimanual_viz(
+                                opt_entry_path,
+                                obj_name,
+                                os.path.join(obj_dir, f'viz_step5_{suffix}.html'),
+                                vis_cfg,
+                                cfg['envs']['optimizer_env'],
+                                pk_root,
+                                logs_dir,
+                                logger,
+                                baseline_entry=dex_entry_path,
+                                kpleft_path=left_kp_path,
+                                kpright_path=right_kp_path,
+                                points_path=os.path.join(obj_dir, 'points.npy'),
+                            )
+                            logger.info(f"Saved visualization: viz_step5_{suffix}.html")
+                        except Exception:
+                            logger.warning(f"Failed to render viz_step5 for {suffix}")
+                continue
+
+            # Multiprocess path (existing)
             tasks = []
             for (i, j) in batch:
                 left_kp_path = os.path.join(obj_dir, f'kpleft_{i:02d}.npy')
