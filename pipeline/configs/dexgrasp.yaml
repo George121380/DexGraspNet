@@ -8,6 +8,7 @@ dexgrasp:
     mode: keypoint  # dexgrasp | keypoint
     kp_offset: 0.04
     random_twist: true
+    random_twist_count: 1  # 每对关键点的随机手掌扭转次数（1*2*3中的“3”）
 
 io:
   save_npz_name: dexgrasp_init.npz

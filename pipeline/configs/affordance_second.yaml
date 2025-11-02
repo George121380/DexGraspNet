@@ -9,6 +9,7 @@ sampling:
   top_k: 128
   nms_radius: 0.01
   temperature: 0.1
+  num_samples: 1  # 在已选第一手点的条件下，第二只手的候选点数量（1*2*3中的“2”）
 
 visualization:
   enable: true

@@ -9,6 +9,7 @@ sampling:
   top_k: 128
   nms_radius: 0.01  # meters
   temperature: 0.1
+  num_samples: 1  # 生成的第一只手候选点数量（1*2*3中的“1”）
 
 visualization:
   enable: true

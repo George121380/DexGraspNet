@@ -87,9 +87,13 @@ def main():
     ap.add_argument('--kpright', required=True, type=str)
     ap.add_argument('--offset', type=float, default=0.04)
     ap.add_argument('--random_twist', action='store_true')
+    ap.add_argument('--seed', type=int, default=None)
     ap.add_argument('--biman_root', type=str, required=True)
     ap.add_argument('--out_entry', required=True, type=str)
     args = ap.parse_args()
+
+    if args.seed is not None:
+        np.random.seed(int(args.seed))
 
     pts = np.load(args.points).astype(np.float32)
     kpL = np.load(args.kpleft).astype(np.float32).reshape(3)
