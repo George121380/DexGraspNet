@@ -4,6 +4,10 @@ dexgrasp:
   checkpoint: "${paths.repo_root}/third_party/DexGraspNet2/experiments/bidex_mink_wristfirst_full/ckpt/ckpt_50000.pth"
   device: cuda:0
   backbone: sparseconv  # null | pointnet2 | sparseconv | sparse_glob_conv
+  init:
+    mode: keypoint  # dexgrasp | keypoint
+    kp_offset: 0.04
+    random_twist: true
 
 io:
   save_npz_name: dexgrasp_init.npz
@@ -13,6 +17,11 @@ visualization:
   root: "${paths.repo_root}/third_party/DexGraspNet2/visualization"
   object_mesh_root: "${paths.repo_root}/data/sapien_data/preprocessed_meshes/pots"
   ref_scale_dir: "${paths.repo_root}/third_party/DexGraspNet2/experiments/bimanual_full_kp"
+  ref_scale_file: "${paths.repo_root}/third_party/BimanGrasp-Dataset/BimanGrasp-Dataset-Release-v1/2_of_Jenga_Classic_Game.npy"
+  ref_scale_value: 0.16036965
   background_color: "#E2F0D9"
+  debug: true
+  palm_center_offset: 0.05   # meters, shift along palm away from wrist
+  palm_normal_len: 0.06      # meters, debug normal length
 
 

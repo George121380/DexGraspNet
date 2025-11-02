@@ -57,15 +57,57 @@ def vector_to_qpos_dict(vec: np.ndarray) -> Dict[str, float]:
 
 
 @lru_cache(maxsize=None)
-def load_default_scale(object_code: str, ref_scale_dir: str) -> float:
-    path = os.path.join(ref_scale_dir, f"{object_code}_GT.npy")
-    if os.path.exists(path):
+def load_default_scale(object_code: str, ref_scale_dir: str = '', ref_scale_file: str = '', ref_scale_value: float = None) -> float:
+    # Priority 0: explicit numeric value from config (works even after file deletion)
+    try:
+        if ref_scale_value is not None:
+            v = float(ref_scale_value)
+            if v > 0:
+                return v
+    except Exception:
+        pass
+    # Priority 1: explicit file
+    if ref_scale_file and os.path.exists(ref_scale_file):
         try:
-            arr = np.load(path, allow_pickle=True)
-            if len(arr) > 0 and isinstance(arr[0], dict) and 'scale' in arr[0]:
-                return float(arr[0]['scale'])
+            arr = np.load(ref_scale_file, allow_pickle=True)
+            # Common cases: scalar dict, array of dicts, or np.void structured
+            def _try_extract(x):
+                try:
+                    if isinstance(x, dict) and 'scale' in x:
+                        return float(x['scale'])
+                except Exception:
+                    return None
+                return None
+            # scalar object
+            if getattr(arr, 'shape', ()) == ():
+                ent = arr.item() if hasattr(arr, 'item') else arr
+                val = _try_extract(ent)
+                if val is not None:
+                    return val
+            # flat iterate
+            try:
+                for ent in arr.flat:
+                    ent = ent.item() if hasattr(ent, 'item') else ent
+                    val = _try_extract(ent)
+                    if val is not None:
+                        return val
+            except Exception:
+                pass
         except Exception:
             pass
+    # Priority 2: directory by object code
+    if ref_scale_dir:
+        path = os.path.join(ref_scale_dir, f"{object_code}_GT.npy")
+        if os.path.exists(path):
+            try:
+                arr = np.load(path, allow_pickle=True)
+                if len(arr) > 0:
+                    ent = arr[0]
+                    ent = ent.item() if hasattr(ent, 'item') else ent
+                    if isinstance(ent, dict) and 'scale' in ent:
+                        return float(ent['scale'])
+            except Exception:
+                pass
     return 1.0
 
 

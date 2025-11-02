@@ -1,7 +1,23 @@
 optimizer:
-  steps: 1000
+  steps: 300
   gpu: "0"
-  step_size: 0.0005
+  step_size: 0.002
+  accept_warmup: 15
+  freeze_joints_steps: 15
+  freeze_translation_steps: 10   # 早期固定手腕平移，防止整体漂移
+  noise_factor: 0.05             # 早期降低Langevin噪声（默认0.1）
+
+energy:
+  # 接触距离项：接触点到物体表面的距离（越近越好）
+  w_dis: 100.0
+  # 穿透项：手-物体的相互穿透深度（越小越好）
+  w_pen: 125.0
+  # 自穿透项：手内部及双手之间的穿透（越小越好）
+  w_spen: 10.0
+  # 关节限位项：越界的关节角度罚（越小越好）
+  w_joints: 1.0
+  # Wrench体积/封闭性：抓取矩阵体积相关（越大越好，能量为其反比）
+  w_vew: 0.5
 
 paths:
   # BimanGrasp-Optimization root
@@ -28,7 +44,7 @@ io:
   optimized_json_name: optimized_pose.json
 
 visualization:
-  enable: true
+  enable: false
   frame_stride: 10
   width: 900
   height: 900

@@ -42,6 +42,9 @@ def _render_bimanual_viz(
     logs_dir: str,
     logger,
     baseline_entry: Optional[str] = None,
+    kpleft_path: Optional[str] = None,
+    kpright_path: Optional[str] = None,
+    points_path: Optional[str] = None,
 ) -> None:
     if not vis_cfg.get('enable', True):
         return
@@ -59,6 +62,18 @@ def _render_bimanual_viz(
     ]
     if 'ref_scale_dir' in vis_cfg:
         cmd += ['--ref_scale_dir', vis_cfg['ref_scale_dir']]
+    if vis_cfg.get('debug', False):
+        cmd += ['--debug']
+        if vis_cfg.get('palm_center_offset') is not None:
+            cmd += ['--palm_offset', str(float(vis_cfg['palm_center_offset']))]
+        if vis_cfg.get('palm_normal_len') is not None:
+            cmd += ['--palm_normal_len', str(float(vis_cfg['palm_normal_len']))]
+        if kpleft_path and os.path.exists(kpleft_path):
+            cmd += ['--kpleft', kpleft_path]
+        if kpright_path and os.path.exists(kpright_path):
+            cmd += ['--kpright', kpright_path]
+        if points_path and os.path.exists(points_path):
+            cmd += ['--points', points_path]
     if baseline_entry:
         cmd += ['--baseline', baseline_entry]
 
@@ -146,7 +161,7 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
     vis_cfg = cfg['dex'].get('visualization', {})
     pk_root = os.path.join(cfg['paths']['third_party']['bimangrasp'], 'thirdparty')
 
-    # Step 4: DexGraspNet2 Pose Generation via conda run
+    # Step 4: Pose Initialization (DexGrasp or Keypoint init) via conda run
     with time_block("DexGrasp Pose Generation", logger):
         left_kp_path = os.path.join(obj_dir, 'kpleft.npy')
         right_kp_path = os.path.join(obj_dir, 'kpright.npy')
@@ -154,30 +169,72 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
         np.save(right_kp_path, np.array(kp2_serial['xyz'], dtype=np.float32))
         logger.info(f"Saved keypoints: {left_kp_path}, {right_kp_path}")
 
-        dex_npz_path = os.path.join(obj_dir, cfg['dex']['io']['save_npz_name'])
-        logger.info("Launching DexGrasp subprocess ...")
-        run_dexgrasp(
-            conda_env=cfg['envs']['pose_gen_env'],
-            repo_root=repo_root,
-            dex_yaml=cfg['dex']['dexgrasp']['yaml_config'],
-            dex_ckpt=cfg['dex']['dexgrasp']['checkpoint'],
-            points_npy=os.path.join(obj_dir, 'points.npy'),
-            kpleft_npy=left_kp_path,
-            kpright_npy=right_kp_path,
-            save_npz_path=dex_npz_path,
-            device=cfg['dex']['dexgrasp']['device'],
-            backbone=cfg['dex']['dexgrasp']['backbone'],
-            logs_dir=logs_dir,
-        )
-        logger.info(f"DexGrasp npz saved: {dex_npz_path}")
-        dex = np.load(dex_npz_path)
-        left_vec = dex['left'][0]
-        right_vec = dex['right'][0]
-        logger.info(f"DexGrasp output: left.shape={left_vec.shape}, right.shape={right_vec.shape}")
-        scale = load_default_scale(obj_name, vis_cfg.get('ref_scale_dir', ''))
-        dex_entry = build_bimanual_entry(left_vec, right_vec, scale)
         dex_entry_path = os.path.join(obj_dir, 'dexgrasp_entry.npy')
-        save_bimanual_entry(dex_entry_path, dex_entry)
+        init_cfg = cfg['dex']['dexgrasp'].get('init', {})
+        if init_cfg.get('mode', 'dexgrasp') == 'keypoint':
+            logger.info("Using keypoint-based hand initialization ...")
+            script = os.path.join(repo_root, 'pipeline', 'utils', 'init_from_keypoints.py')
+            cmd = [
+                'conda', 'run', '-n', cfg['envs']['optimizer_env'], 'python', script,
+                '--points', os.path.join(obj_dir, 'points.npy'),
+                '--kpleft', left_kp_path,
+                '--kpright', right_kp_path,
+                '--biman_root', cfg['paths']['third_party']['bimangrasp'],
+                '--offset', str(float(init_cfg.get('kp_offset', 0.04))),
+                '--out_entry', dex_entry_path,
+            ]
+            if bool(init_cfg.get('random_twist', True)):
+                cmd.append('--random_twist')
+            stdout_path = os.path.join(logs_dir, 'init_kp_stdout.txt')
+            stderr_path = os.path.join(logs_dir, 'init_kp_stderr.txt')
+            rc, _, _ = run_subprocess(cmd, stdout_path=stdout_path, stderr_path=stderr_path, logger=logger)
+            if rc != 0:
+                raise RuntimeError(f"Keypoint init failed: rc={rc}")
+            scale = load_default_scale(
+                obj_name,
+                vis_cfg.get('ref_scale_dir', ''),
+                vis_cfg.get('ref_scale_file', ''),
+                vis_cfg.get('ref_scale_value', None),
+            )
+            dex_npz_path = None
+            # Load entry back for later baseline/step5
+            try:
+                dex_arr = np.load(dex_entry_path, allow_pickle=True)
+                dex_entry = dex_arr[0].item() if hasattr(dex_arr[0], 'item') else dex_arr[0]
+                # ensure scale written for downstream viz/opt consistency
+                dex_entry['scale'] = float(scale)
+                save_bimanual_entry(dex_entry_path, dex_entry)
+            except Exception:
+                dex_entry = {'qpos_left': {}, 'qpos_right': {}, 'scale': float(scale)}
+        else:
+            dex_npz_path = os.path.join(obj_dir, cfg['dex']['io']['save_npz_name'])
+            logger.info("Launching DexGrasp subprocess ...")
+            run_dexgrasp(
+                conda_env=cfg['envs']['pose_gen_env'],
+                repo_root=repo_root,
+                dex_yaml=cfg['dex']['dexgrasp']['yaml_config'],
+                dex_ckpt=cfg['dex']['dexgrasp']['checkpoint'],
+                points_npy=os.path.join(obj_dir, 'points.npy'),
+                kpleft_npy=left_kp_path,
+                kpright_npy=right_kp_path,
+                save_npz_path=dex_npz_path,
+                device=cfg['dex']['dexgrasp']['device'],
+                backbone=cfg['dex']['dexgrasp']['backbone'],
+                logs_dir=logs_dir,
+            )
+            logger.info(f"DexGrasp npz saved: {dex_npz_path}")
+            dex = np.load(dex_npz_path)
+            left_vec = dex['left'][0]
+            right_vec = dex['right'][0]
+            logger.info(f"DexGrasp output: left.shape={left_vec.shape}, right.shape={right_vec.shape}")
+            scale = load_default_scale(
+                obj_name,
+                vis_cfg.get('ref_scale_dir', ''),
+                vis_cfg.get('ref_scale_file', ''),
+                vis_cfg.get('ref_scale_value', None),
+            )
+            dex_entry = build_bimanual_entry(left_vec, right_vec, scale)
+            save_bimanual_entry(dex_entry_path, dex_entry)
         _render_bimanual_viz(
             dex_entry_path,
             obj_name,
@@ -187,6 +244,9 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             pk_root,
             logs_dir,
             logger,
+            kpleft_path=left_kp_path,
+            kpright_path=right_kp_path,
+            points_path=os.path.join(obj_dir, 'points.npy'),
         )
         logger.info("Saved visualization: viz_step4.html")
 
@@ -200,20 +260,29 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
         out_json = os.path.join(obj_dir, cfg['opt']['io']['optimized_json_name'])
 
         script = os.path.join(repo_root, 'pipeline', 'utils', 'pose_optimizer.py')
+        total_steps = int(cfg['optimizer']['steps']) if 'optimizer' in cfg and 'steps' in cfg['optimizer'] else int(cfg['opt']['optimizer']['steps']) if 'optimizer' in cfg['opt'] else 100
         cmd = [
             'conda', 'run', '-n', cfg['envs']['optimizer_env'], 'python', script,
             '--biman_root', cfg['paths']['third_party']['bimangrasp'],
             '--data_root', cfg['opt']['paths']['data_root'],
             '--object_code', object_code,
-            '--dex_npz', dex_npz_path,
-            '--steps', str(int(cfg['optimizer']['steps']) if 'optimizer' in cfg and 'steps' in cfg['optimizer'] else int(cfg['opt']['optimizer']['steps']) if 'optimizer' in cfg['opt'] else 100),
+            '--steps', str(total_steps),
             '--gpu', cfg['opt']['optimizer']['gpu'] if 'optimizer' in cfg['opt'] else '0',
             '--out_npz', out_npz,
             '--out_json', out_json,
         ]
+        if init_cfg.get('mode', 'dexgrasp') == 'keypoint':
+            cmd.extend(['--entry', dex_entry_path])
+        else:
+            cmd.extend(['--dex_npz', dex_npz_path])
         # Pass consistent object scale to optimizer (match viz/Dex scale)
         try:
-            obj_scale = load_default_scale(obj_name, vis_cfg.get('ref_scale_dir', ''))
+            obj_scale = load_default_scale(
+                obj_name,
+                vis_cfg.get('ref_scale_dir', ''),
+                vis_cfg.get('ref_scale_file', ''),
+                vis_cfg.get('ref_scale_value', None),
+            )
             if obj_scale is not None:
                 cmd.extend(['--object_scale', str(float(obj_scale))])
         except Exception:
@@ -236,16 +305,61 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             ])
             if opt_vis_cfg.get('show_contacts', False):
                 cmd.append('--show_contacts')
-        # Optional optimizer step size override for stability
+        # Optional optimizer overrides for stability
         try:
             if 'optimizer' in cfg['opt'] and cfg['opt']['optimizer'].get('step_size') is not None:
                 cmd.extend(['--opt_step_size', str(float(cfg['opt']['optimizer']['step_size']))])
+            if 'optimizer' in cfg['opt'] and cfg['opt']['optimizer'].get('accept_warmup') is not None:
+                cmd.extend(['--accept_warmup', str(int(cfg['opt']['optimizer']['accept_warmup']))])
+            if 'optimizer' in cfg['opt'] and cfg['opt']['optimizer'].get('freeze_joints_steps') is not None:
+                cmd.extend(['--freeze_joints_steps', str(int(cfg['opt']['optimizer']['freeze_joints_steps']))])
+            if 'optimizer' in cfg['opt'] and cfg['opt']['optimizer'].get('freeze_translation_steps') is not None:
+                cmd.extend(['--freeze_translation_steps', str(int(cfg['opt']['optimizer']['freeze_translation_steps']))])
         except Exception:
             pass
         stdout_path = os.path.join(logs_dir, 'biman_opt_stdout.txt')
         stderr_path = os.path.join(logs_dir, 'biman_opt_stderr.txt')
+        progress_file = os.path.join(logs_dir, 'biman_opt_progress.txt')
+        cmd.extend(['--progress_file', progress_file])
         logger.info("Launching BimanGrasp subprocess ...")
-        rc, _, _ = run_subprocess(cmd, stdout_path=stdout_path, stderr_path=stderr_path, logger=logger)
+        # Run asynchronously to show progress
+        import subprocess, shlex, time
+        env = os.environ.copy()
+        env['PIPELINE_PROGRESS_FILE'] = progress_file
+        # Energy weights overrides via env
+        energy_cfg = cfg['opt'].get('energy', {}) if 'opt' in cfg else {}
+        if energy_cfg:
+            if energy_cfg.get('w_dis') is not None:
+                env['PIPELINE_W_DIS'] = str(float(energy_cfg['w_dis']))
+            if energy_cfg.get('w_pen') is not None:
+                env['PIPELINE_W_PEN'] = str(float(energy_cfg['w_pen']))
+            if energy_cfg.get('w_spen') is not None:
+                env['PIPELINE_W_SPEN'] = str(float(energy_cfg['w_spen']))
+            if energy_cfg.get('w_joints') is not None:
+                env['PIPELINE_W_JOINTS'] = str(float(energy_cfg['w_joints']))
+            if energy_cfg.get('w_vew') is not None:
+                env['PIPELINE_W_VEW'] = str(float(energy_cfg['w_vew']))
+        # noise factor
+        opt_cfg = cfg['opt'].get('optimizer', {}) if 'opt' in cfg else {}
+        if opt_cfg.get('noise_factor') is not None:
+            env['PIPELINE_NOISE_FACTOR'] = str(float(opt_cfg['noise_factor']))
+        with open(stdout_path, 'w') as f_out, open(stderr_path, 'w') as f_err:
+            proc = subprocess.Popen(cmd, stdout=f_out, stderr=f_err, text=True, env=env)
+            last = -1
+            while True:
+                rc = proc.poll()
+                try:
+                    if os.path.exists(progress_file):
+                        with open(progress_file, 'r') as pf:
+                            cur = int(pf.read().strip() or '0')
+                        if cur != last:
+                            logger.info(f"[Opt] progress {cur}/{total_steps} ({(cur/ max(total_steps,1))*100:.1f}%)")
+                            last = cur
+                except Exception:
+                    pass
+                if rc is not None:
+                    break
+                time.sleep(1.0)
         if rc != 0:
             raise RuntimeError(f"BimanGrasp optimization failed: rc={rc}")
         logger.info(f"BimanGrasp outputs: {out_npz}, {out_json}")
@@ -273,6 +387,9 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                 logs_dir,
                 logger,
                 baseline_entry=dex_entry_path,
+                kpleft_path=left_kp_path,
+                kpright_path=right_kp_path,
+                points_path=os.path.join(obj_dir, 'points.npy'),
             )
             logger.info("Saved visualization: viz_step5.html")
 

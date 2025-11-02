@@ -85,6 +85,12 @@ def main():
     parser.add_argument('--baseline', default=None, type=str)
     parser.add_argument('--pk_root', default=None, type=str)
     parser.add_argument('--ref_scale_dir', default=None, type=str)
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--palm_offset', type=float, default=None)
+    parser.add_argument('--palm_normal_len', type=float, default=None)
+    parser.add_argument('--kpleft', type=str, default=None)
+    parser.add_argument('--kpright', type=str, default=None)
+    parser.add_argument('--points', type=str, default=None)
     args = parser.parse_args()
 
     if args.pk_root and args.pk_root not in sys.path:
@@ -136,18 +142,107 @@ def main():
         left_hand.set_parameters(left_pose)
         right_hand.set_parameters(right_pose)
 
+        hand_opacity = 0.35 if args.debug else 1.0
+        obj_opacity = 0.25 if args.debug else 1.0
         traces = []
-        traces.extend(right_hand.get_plotly_data(i=0, opacity=1.0, color='lightslategray', with_contact_points=False))
-        traces.extend(object_model.get_plotly_data(i=0, color='seashell', opacity=1.0))
-        traces.extend(left_hand.get_plotly_data(i=0, opacity=1.0, color='lightslategray', with_contact_points=False))
+        traces.extend(right_hand.get_plotly_data(i=0, opacity=hand_opacity, color='lightslategray', with_contact_points=False))
+        traces.extend(object_model.get_plotly_data(i=0, color='seashell', opacity=obj_opacity))
+        traces.extend(left_hand.get_plotly_data(i=0, opacity=hand_opacity, color='lightslategray', with_contact_points=False))
+
+        # Add palm center markers and normals for debugging (use kinematics of palm link)
+        def _mat_np(mat):
+            if hasattr(mat, 'detach'):
+                mat = mat.detach().cpu().numpy()
+            return mat[0] if getattr(mat, 'ndim', 2) == 3 else mat
+
+        def _add_palm_marker_from_model(hand_model, color_pts: str, color_vec: str, name: str, normal_len: float = 0.06, center_offset: float = 0.02):
+            # Global pose of the hand (world)
+            g_t = hand_model.global_translation[0].detach().cpu().numpy().astype(np.float32)
+            g_R = hand_model.global_rotation[0].detach().cpu().numpy().astype(np.float32)
+
+            # Palm link vertices in local hand base -> world
+            v_local = hand_model.mesh['robot0:palm']['vertices'].detach().cpu().numpy().astype(np.float32)
+            # Transform to palm link frame, then to world
+            v_palm = hand_model.current_status['robot0:palm'].transform_points(hand_model.mesh['robot0:palm']['vertices'])
+            if len(v_palm.shape) == 3:
+                v_palm = v_palm[0]
+            v_world = (v_palm @ g_R.T + g_t).detach().cpu().numpy().astype(np.float32)
+
+            # Geometric palm center (mesh centroid)
+            p_centroid = v_world.mean(axis=0)
+
+            # Wrist world pos for midline direction
+            try:
+                M_wrist_local = _mat_np(hand_model.current_status['robot0:wrist_child'].get_matrix())
+                p_wrist_world = g_t + g_R @ M_wrist_local[:3, 3].astype(np.float32)
+            except Exception:
+                p_wrist_world = p_centroid
+            dir_mid_world = p_centroid - p_wrist_world
+            dir_mid_world = dir_mid_world / (np.linalg.norm(dir_mid_world) + 1e-8)
+
+            # Shift slightly further towards palm center from wrist side
+            p_center = p_centroid + center_offset * dir_mid_world
+
+            # Palm normal by PCA (smallest eigenvector of covariance)
+            vv = v_world - p_centroid
+            C = vv.T @ vv
+            eigvals, eigvecs = np.linalg.eigh(C)
+            n_world = eigvecs[:, 0]  # smallest eigenvalue
+            n_world = n_world / (np.linalg.norm(n_world) + 1e-8)
+            # For right hand, flip to keep outward convention consistent with left
+            if 'right' in name:
+                n_world = -n_world
+            # Ensure normal is perpendicular; choose sign that points roughly towards object side (use -dir_mid cross?)
+            # Use heuristic: normal should be roughly orthogonal to dir_mid; keep current sign
+            p2 = p_center + normal_len * n_world
+
+            traces.append(go.Scatter3d(x=[p_center[0]], y=[p_center[1]], z=[p_center[2]], mode='markers',
+                                       marker=dict(size=5, color=color_pts), name=f'{name}_palm'))
+            traces.append(go.Scatter3d(x=[p_center[0], p2[0]], y=[p_center[1], p2[1]], z=[p_center[2], p2[2]], mode='lines',
+                                       line=dict(color=color_vec, width=6), name=f'{name}_normal'))
+
+        if args.debug:
+            center_offset_cfg = float(args.palm_offset) if args.palm_offset is not None else 0.05
+            normal_len_cfg = float(args.palm_normal_len) if args.palm_normal_len is not None else 0.06
+            _add_palm_marker_from_model(left_hand, color_pts='green', color_vec='green', name='left', normal_len=normal_len_cfg, center_offset=center_offset_cfg)
+            _add_palm_marker_from_model(right_hand, color_pts='blue', color_vec='blue', name='right', normal_len=normal_len_cfg, center_offset=center_offset_cfg)
+            # Keypoint markers if provided
+            try:
+                if args.kpleft and os.path.exists(args.kpleft):
+                    kpl = np.load(args.kpleft).astype(np.float32).reshape(3)
+                    traces.append(go.Scatter3d(x=[kpl[0]], y=[kpl[1]], z=[kpl[2]], mode='markers',
+                                               marker=dict(size=6, color='lime', symbol='diamond'), name='kp_left'))
+                if args.kpright and os.path.exists(args.kpright):
+                    kpr = np.load(args.kpright).astype(np.float32).reshape(3)
+                    traces.append(go.Scatter3d(x=[kpr[0]], y=[kpr[1]], z=[kpr[2]], mode='markers',
+                                               marker=dict(size=6, color='deepskyblue', symbol='diamond'), name='kp_right'))
+                if args.points and os.path.exists(args.points):
+                    pc = np.load(args.points).astype(np.float32)
+                    ctd = pc.mean(axis=0)
+                    traces.append(go.Scatter3d(x=[ctd[0]], y=[ctd[1]], z=[ctd[2]], mode='markers',
+                                               marker=dict(size=7, color='magenta', symbol='x'), name='pc_centroid'))
+                    # Draw target normal lines (kp -> centroid)
+                    if 'kpl' in locals():
+                        traces.append(go.Scatter3d(x=[kpl[0], ctd[0]], y=[kpl[1], ctd[1]], z=[kpl[2], ctd[2]],
+                                                   mode='lines', line=dict(color='lime', width=4, dash='dash'), name='n_target_left'))
+                    if 'kpr' in locals():
+                        traces.append(go.Scatter3d(x=[kpr[0], ctd[0]], y=[kpr[1], ctd[1]], z=[kpr[2], ctd[2]],
+                                                   mode='lines', line=dict(color='deepskyblue', width=4, dash='dash'), name='n_target_right'))
+            except Exception:
+                pass
 
         if baseline_entry is not None:
             left_pose_st = _qpos_dict_to_pose(baseline_entry['qpos_left'], device=device)
             right_pose_st = _qpos_dict_to_pose(baseline_entry['qpos_right'], device=device)
             left_hand.set_parameters(left_pose_st)
             right_hand.set_parameters(right_pose_st)
-            traces.extend(right_hand.get_plotly_data(i=0, opacity=0.35, color='orange', with_contact_points=False))
-            traces.extend(left_hand.get_plotly_data(i=0, opacity=0.35, color='orange', with_contact_points=False))
+            traces.extend(right_hand.get_plotly_data(i=0, opacity=0.25 if args.debug else 0.35, color='orange', with_contact_points=False))
+            traces.extend(left_hand.get_plotly_data(i=0, opacity=0.25 if args.debug else 0.35, color='orange', with_contact_points=False))
+            if args.debug:
+                center_offset_cfg = float(args.palm_offset) if args.palm_offset is not None else 0.05
+                normal_len_cfg = float(args.palm_normal_len) if args.palm_normal_len is not None else 0.06
+                _add_palm_marker_from_model(left_hand, color_pts='orange', color_vec='orange', name='left_st', normal_len=normal_len_cfg, center_offset=center_offset_cfg)
+                _add_palm_marker_from_model(right_hand, color_pts='orange', color_vec='orange', name='right_st', normal_len=normal_len_cfg, center_offset=center_offset_cfg)
             left_hand.set_parameters(left_pose)
             right_hand.set_parameters(right_pose)
 

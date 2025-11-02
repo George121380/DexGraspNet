@@ -53,6 +53,12 @@ def optimize_from_dexgrasp(
     fps: int = 20,
     object_scale: Optional[float] = None,
     opt_step_size: Optional[float] = None,
+    left_pose_override: Optional[torch.Tensor] = None,
+    right_pose_override: Optional[torch.Tensor] = None,
+    accept_warmup_steps: int = 0,
+    freeze_joints_steps: int = 0,
+    freeze_translation_steps: int = 0,
+    noise_factor: Optional[float] = None,
 ) -> Tuple[dict, dict, Optional[str]]:
     # Prepare sys.path for BimanGrasp-Optimization
     if biman_root not in sys.path:
@@ -99,9 +105,15 @@ def optimize_from_dexgrasp(
     finally:
         os.chdir(cwd)
 
-    # Set initial poses from DexGrasp
-    left_pose = _dex_vec_to_hand_pose(left_vec).to(device)
-    right_pose = _dex_vec_to_hand_pose(right_vec).to(device)
+    # Set initial poses from DexGrasp or direct overrides
+    if left_pose_override is not None:
+        left_pose = left_pose_override.to(device)
+    else:
+        left_pose = _dex_vec_to_hand_pose(left_vec).to(device)
+    if right_pose_override is not None:
+        right_pose = right_pose_override.to(device)
+    else:
+        right_pose = _dex_vec_to_hand_pose(right_vec).to(device)
     contact_num = 4
     left_contacts = torch.randint(left_hand.n_contact_candidates, (left_pose.shape[0], contact_num), device=device)
     right_contacts = torch.randint(right_hand.n_contact_candidates, (right_pose.shape[0], contact_num), device=device)
@@ -149,8 +161,33 @@ def optimize_from_dexgrasp(
             cfg.optimizer.step_size = float(opt_step_size)
         except Exception:
             pass
+    # Apply energy weight overrides from environment (set by pipeline)
+    try:
+        w_dis_env = os.environ.get('PIPELINE_W_DIS', None)
+        w_pen_env = os.environ.get('PIPELINE_W_PEN', None)
+        w_spen_env = os.environ.get('PIPELINE_W_SPEN', None)
+        w_joints_env = os.environ.get('PIPELINE_W_JOINTS', None)
+        w_vew_env = os.environ.get('PIPELINE_W_VEW', None)
+        if w_dis_env is not None:
+            cfg.energy.w_dis = float(w_dis_env)
+        if w_pen_env is not None:
+            cfg.energy.w_pen = float(w_pen_env)
+        if w_spen_env is not None:
+            cfg.energy.w_spen = float(w_spen_env)
+        if w_joints_env is not None:
+            cfg.energy.w_joints = float(w_joints_env)
+        if w_vew_env is not None:
+            cfg.energy.w_vew = float(w_vew_env)
+    except Exception:
+        pass
     energy = BimanualEnergyComputer(cfg.energy, device)
     opt = MALAOptimizer(pair.left, pair.right, config=cfg.optimizer, device=device)
+    # Optional: reduce stochasticity to避免早期偏移
+    if noise_factor is not None:
+        try:
+            opt.langevin_noise_factor = torch.tensor(float(noise_factor), dtype=torch.float, device=device)
+        except Exception:
+            pass
     # Override iterations
     opt.num_iterations = int(steps)
 
@@ -159,13 +196,46 @@ def optimize_from_dexgrasp(
     energy_terms.total.sum().backward(retain_graph=True)
     accepted_total = 0
     total_proposals = 0
+    # Cache initial joint angles for optional early freeze
+    joint_start_idx = 3 + 6
+    left_joints_init = left_hand.hand_pose.clone()[:, joint_start_idx:]
+    right_joints_init = right_hand.hand_pose.clone()[:, joint_start_idx:]
+    left_trans_init = left_hand.hand_pose.clone()[:, :3]
+    right_trans_init = right_hand.hand_pose.clone()[:, :3]
+
+    progress_file = os.environ.get('PIPELINE_PROGRESS_FILE', '')
     for step in tqdm(range(1, int(steps) + 1), total=int(steps), desc="optimizing", dynamic_ncols=True):
         opt.langevin_proposal()
+        if step <= int(freeze_joints_steps):
+            # Keep finger joints fixed in early iterations to stabilize wrist/object positioning
+            with torch.no_grad():
+                left_contacts_cur = left_hand.contact_point_indices.clone()
+                right_contacts_cur = right_hand.contact_point_indices.clone()
+                left_pose_cur = left_hand.hand_pose.detach()
+                right_pose_cur = right_hand.hand_pose.detach()
+                left_new = torch.cat([left_pose_cur[:, :joint_start_idx], left_joints_init], dim=1).clone().requires_grad_(True)
+                right_new = torch.cat([right_pose_cur[:, :joint_start_idx], right_joints_init], dim=1).clone().requires_grad_(True)
+                left_hand.set_parameters(left_new, left_contacts_cur)
+                right_hand.set_parameters(right_new, right_contacts_cur)
+        if step <= int(freeze_translation_steps):
+            # Keep wrist translation fixed to initial value to防止早期整体漂移
+            with torch.no_grad():
+                left_contacts_cur = left_hand.contact_point_indices.clone()
+                right_contacts_cur = right_hand.contact_point_indices.clone()
+                left_pose_cur = left_hand.hand_pose.detach()
+                right_pose_cur = right_hand.hand_pose.detach()
+                left_new = torch.cat([left_trans_init, left_pose_cur[:, 3:]], dim=1).clone().requires_grad_(True)
+                right_new = torch.cat([right_trans_init, right_pose_cur[:, 3:]], dim=1).clone().requires_grad_(True)
+                left_hand.set_parameters(left_new, left_contacts_cur)
+                right_hand.set_parameters(right_new, right_contacts_cur)
         opt.zero_grad()
         new_terms = energy.compute_all_energies(pair, obj, verbose=False)
         new_terms.total.sum().backward(retain_graph=True)
         with torch.no_grad():
-            accept, _ = opt.metropolis_hastings_step(energy_terms.total, new_terms.total)
+            if step <= int(accept_warmup_steps):
+                accept = torch.ones_like(new_terms.total, dtype=torch.bool)
+            else:
+                accept, _ = opt.metropolis_hastings_step(energy_terms.total, new_terms.total)
             accepted_total += int(accept.sum().item())
             total_proposals += int(accept.numel())
             energy_terms.total[accept] = new_terms.total[accept]
@@ -181,6 +251,13 @@ def optimize_from_dexgrasp(
             except Exception as exc:  # pragma: no cover
                 print(f"[Recorder] capture failed at step {step}: {exc}")
                 recorder = None
+        # progress file update
+        if progress_file:
+            try:
+                with open(progress_file, 'w') as pf:
+                    pf.write(str(step))
+            except Exception:
+                pass
 
     # Export results
     left_qpos = hand_pose_to_dict(left_hand.hand_pose[0])
@@ -203,7 +280,8 @@ def main():
     ap.add_argument('--data_root', required=True, type=str)
     ap.add_argument('--experiments_base', required=False, type=str, default=None)
     ap.add_argument('--object_code', required=True, type=str)
-    ap.add_argument('--dex_npz', required=True, type=str)
+    ap.add_argument('--dex_npz', required=False, type=str, default=None)
+    ap.add_argument('--entry', required=False, type=str, default=None)
     ap.add_argument('--steps', type=int, default=100)
     ap.add_argument('--gpu', type=str, default='0')
     ap.add_argument('--out_npz', type=str, required=True)
@@ -219,11 +297,63 @@ def main():
     ap.add_argument('--bg_color', type=str, default='#E2F0D9')
     ap.add_argument('--object_scale', type=float, default=None)
     ap.add_argument('--opt_step_size', type=float, default=None)
+    ap.add_argument('--accept_warmup', type=int, default=0)
+    ap.add_argument('--freeze_joints_steps', type=int, default=0)
+    ap.add_argument('--freeze_translation_steps', type=int, default=0)
+    ap.add_argument('--progress_file', type=str, default='')
     args = ap.parse_args()
 
-    data = np.load(args.dex_npz)
-    left_vec = data['left'][0]
-    right_vec = data['right'][0]
+    def qpos_dict_to_vec(qd: dict) -> np.ndarray:
+        # Order: 22 joints then [Rx, Ry, Rz, Tx, Ty, Tz]
+        joint_names = [
+            'robot0:FFJ3', 'robot0:FFJ2', 'robot0:FFJ1', 'robot0:FFJ0',
+            'robot0:MFJ3', 'robot0:MFJ2', 'robot0:MFJ1', 'robot0:MFJ0',
+            'robot0:RFJ3', 'robot0:RFJ2', 'robot0:RFJ1', 'robot0:RFJ0',
+            'robot0:LFJ4', 'robot0:LFJ3', 'robot0:LFJ2', 'robot0:LFJ1', 'robot0:LFJ0',
+            'robot0:THJ4', 'robot0:THJ3', 'robot0:THJ2', 'robot0:THJ1', 'robot0:THJ0'
+        ]
+        fingers = [float(qd.get(n, 0.0)) for n in joint_names]
+        rx = float(qd.get('WRJRx', 0.0)); ry = float(qd.get('WRJRy', 0.0)); rz = float(qd.get('WRJRz', 0.0))
+        tx = float(qd.get('WRJTx', 0.0)); ty = float(qd.get('WRJTy', 0.0)); tz = float(qd.get('WRJTz', 0.0))
+        return np.asarray(fingers + [rx, ry, rz, tx, ty, tz], dtype=np.float32)
+
+    if args.entry is not None and len(args.entry) > 0:
+        arr = np.load(args.entry, allow_pickle=True)
+        if isinstance(arr, np.ndarray) and len(arr) > 0:
+            ent = arr[0]
+            if hasattr(ent, 'item'):
+                ent = ent.item()
+        else:
+            raise RuntimeError(f"Invalid entry file: {args.entry}")
+        left_vec = qpos_dict_to_vec(ent['qpos_left'])
+        right_vec = qpos_dict_to_vec(ent['qpos_right'])
+        # Build direct hand_pose overrides to ensure exact match with Step4 visualization
+        def qpos_dict_to_pose(qpos: dict) -> torch.Tensor:
+            import transforms3d
+            trans = [float(qpos.get('WRJTx', 0.0)), float(qpos.get('WRJTy', 0.0)), float(qpos.get('WRJTz', 0.0))]
+            R = transforms3d.euler.euler2mat(float(qpos.get('WRJRx', 0.0)), float(qpos.get('WRJRy', 0.0)), float(qpos.get('WRJRz', 0.0)))
+            rot6d = torch.tensor(R[:, :2].T.reshape(-1), dtype=torch.float)
+            joint_names = [
+                'robot0:FFJ3', 'robot0:FFJ2', 'robot0:FFJ1', 'robot0:FFJ0',
+                'robot0:MFJ3', 'robot0:MFJ2', 'robot0:MFJ1', 'robot0:MFJ0',
+                'robot0:RFJ3', 'robot0:RFJ2', 'robot0:RFJ1', 'robot0:RFJ0',
+                'robot0:LFJ4', 'robot0:LFJ3', 'robot0:LFJ2', 'robot0:LFJ1', 'robot0:LFJ0',
+                'robot0:THJ4', 'robot0:THJ3', 'robot0:THJ2', 'robot0:THJ1', 'robot0:THJ0'
+            ]
+            fingers = torch.tensor([float(qpos.get(n, 0.0)) for n in joint_names], dtype=torch.float)
+            data = torch.tensor(trans, dtype=torch.float)
+            pose = torch.cat([data, rot6d, fingers], dim=0).unsqueeze(0)
+            return pose.requires_grad_(True)
+        left_pose_override = qpos_dict_to_pose(ent['qpos_left'])
+        right_pose_override = qpos_dict_to_pose(ent['qpos_right'])
+    else:
+        if args.dex_npz is None or not os.path.exists(args.dex_npz):
+            raise RuntimeError("Either --dex_npz or --entry must be provided")
+        data = np.load(args.dex_npz)
+        left_vec = data['left'][0]
+        right_vec = data['right'][0]
+        left_pose_override = None
+        right_pose_override = None
 
     # Build config via optimize function (handles sys.path setup)
     lq, rq, video_path = optimize_from_dexgrasp(
@@ -246,6 +376,12 @@ def main():
         fps=int(args.video_fps),
         object_scale=args.object_scale,
         opt_step_size=args.opt_step_size,
+        left_pose_override=left_pose_override,
+        right_pose_override=right_pose_override,
+        accept_warmup_steps=int(args.accept_warmup or 0),
+        freeze_joints_steps=int(args.freeze_joints_steps or 0),
+        freeze_translation_steps=int(args.freeze_translation_steps or 0),
+        noise_factor=float(os.environ.get('PIPELINE_NOISE_FACTOR', 'nan')) if os.environ.get('PIPELINE_NOISE_FACTOR') else None,
     )
 
     os.makedirs(os.path.dirname(args.out_npz), exist_ok=True)

@@ -1,3 +1,46 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors/IDEs
+.idea/
+.vscode/
+
+# Envs/build
+.env
+.venv/
+env/
+venv/
+build/
+dist/
+
+# Pipeline outputs and temp artifacts
+pipeline/outputs/
+pipeline/**/optimization_frames/
+pipeline/**/optimization.mp4
+pipeline/**/viz_step*.html
+
+# Inputs and large data (keep configs, ignore heavy assets)
+pipeline/pipeline_input/
+data/sapien_data/**
+
+# Third-party experiment outputs/checkpoints (do not version large artifacts)
+third_party/**/experiments/**
+third_party/**/ckpt/**
+third_party/**/checkpoints/**
+third_party/**/data/**
+
+# Logs
+*.log
+logs/
+**/logs/
+
 # Added by assistant to keep repo light
 # Ignore dev and third_party folders
 dev/
