@@ -122,6 +122,7 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
 
     # Centralized multipose controls (fallback to sub-configs if absent)
     mp_cfg = dict(cfg.get('multipose', {}))
+    sample_by_value = bool(mp_cfg.get('sample_by_value', False))
 
     # Step 2: Affordance First → multiple kp1 candidates
     with time_block("Affordance First", logger):
@@ -130,24 +131,39 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
         logger.info(f"Aff1 scores: min={float(np.min(aff1_scores)):.4f}, max={float(np.max(aff1_scores)):.4f}")
         n_kp1 = int(mp_cfg.get('kp1_samples', cfg['aff1']['sampling'].get('num_samples', 1)))
         kp1_list = []
-        used_idx_1 = set()
-        max_trials = max(10, n_kp1 * 10)
-        trials = 0
-        while len(kp1_list) < n_kp1 and trials < max_trials:
-            trials += 1
-            kp1 = aff1.sample_keypoint(
-                points, aff1_scores,
-                strategy=cfg['aff1']['sampling']['strategy'],
-                top_k=cfg['aff1']['sampling']['top_k'],
-                nms_radius=cfg['aff1']['sampling']['nms_radius'],
-                temperature=cfg['aff1']['sampling']['temperature']
-            )
-            if int(kp1['index']) in used_idx_1:
-                continue
-            kp1_serial = _serialize_keypoint(kp1)
-            kp1_list.append(kp1_serial)
-            used_idx_1.add(int(kp1['index']))
-            save_json(os.path.join(obj_dir, f"kp1_{len(kp1_list)-1:02d}.json"), kp1_serial)
+        if sample_by_value:
+            # Softmax sampling without replacement
+            N = points.shape[0]
+            temp1 = float(mp_cfg.get('temperature_kp1', cfg['aff1']['sampling'].get('temperature', 0.1)))
+            logits = aff1_scores.reshape(N) / max(1e-6, temp1)
+            logits = logits - logits.max()
+            probs = np.exp(logits)
+            probs = probs / (probs.sum() + 1e-8)
+            k = min(n_kp1, N)
+            sel = np.random.choice(np.arange(N), size=k, replace=False, p=probs)
+            for t, idx in enumerate(sel):
+                kp1_serial = {"index": int(idx), "xyz": points[int(idx)].astype(np.float32).tolist()}
+                kp1_list.append(kp1_serial)
+                save_json(os.path.join(obj_dir, f"kp1_{t:02d}.json"), kp1_serial)
+        else:
+            used_idx_1 = set()
+            max_trials = max(10, n_kp1 * 10)
+            trials = 0
+            while len(kp1_list) < n_kp1 and trials < max_trials:
+                trials += 1
+                kp1 = aff1.sample_keypoint(
+                    points, aff1_scores,
+                    strategy=cfg['aff1']['sampling']['strategy'],
+                    top_k=cfg['aff1']['sampling']['top_k'],
+                    nms_radius=cfg['aff1']['sampling']['nms_radius'],
+                    temperature=cfg['aff1']['sampling']['temperature']
+                )
+                if int(kp1['index']) in used_idx_1:
+                    continue
+                kp1_serial = _serialize_keypoint(kp1)
+                kp1_list.append(kp1_serial)
+                used_idx_1.add(int(kp1['index']))
+                save_json(os.path.join(obj_dir, f"kp1_{len(kp1_list)-1:02d}.json"), kp1_serial)
         np.save(os.path.join(obj_dir, 'aff1.npy'), aff1_scores)
         if len(kp1_list) == 0:
             raise RuntimeError("Affordance First sampling produced no keypoints")
@@ -170,26 +186,45 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             logger.info(f"[kp1 {i}] Aff2 scores: min={float(np.min(aff2_scores)):.4f}, max={float(np.max(aff2_scores)):.4f}")
             # save aff2 scores optionally per kp1
             np.save(os.path.join(obj_dir, f'aff2_{i:02d}.npy'), aff2_scores)
-            # Deterministic top-n selection for kp2 to avoid duplicates
             N = points.shape[0]
-            top_k = int(cfg['aff2']['sampling'].get('top_k', N))
-            top_k = max(1, min(top_k, N))
-            # get top_k indices by score descending
-            order = np.argsort(aff2_scores.reshape(N))[::-1]
-            top_candidates = order[:top_k]
-            selected = top_candidates[:min(n_kp2, len(top_candidates))]
             kp2_list_i = []
-            for j_idx, idx in enumerate(selected):
-                kp2_ser = {"index": int(idx), "xyz": points[int(idx)].astype(np.float32).tolist()}
-                kp2_list_i.append(kp2_ser)
-                save_json(os.path.join(obj_dir, f"kp2_{i:02d}_{j_idx:02d}.json"), kp2_ser)
-                if cfg['visualization']['enable'] and not viz3_done and i == 0:
-                    write_pointcloud_with_values_html(
-                        points, aff2_scores,
-                        [(kp1_serial['index'], np.array(kp1_serial['xyz'])),
-                         (kp2_ser['index'], np.array(kp2_ser['xyz']))],
-                        os.path.join(obj_dir, 'viz_step3.html'), title='Affordance Second')
-                    viz3_done = True
+            if sample_by_value:
+                temp2 = float(mp_cfg.get('temperature_kp2', cfg['aff2']['sampling'].get('temperature', 0.1)))
+                logits = aff2_scores.reshape(N) / max(1e-6, temp2)
+                logits = logits - logits.max()
+                probs = np.exp(logits)
+                probs = probs / (probs.sum() + 1e-8)
+                k = min(n_kp2, N)
+                sel = np.random.choice(np.arange(N), size=k, replace=False, p=probs)
+                for j_idx, idx in enumerate(sel):
+                    kp2_ser = {"index": int(idx), "xyz": points[int(idx)].astype(np.float32).tolist()}
+                    kp2_list_i.append(kp2_ser)
+                    save_json(os.path.join(obj_dir, f"kp2_{i:02d}_{j_idx:02d}.json"), kp2_ser)
+                    if cfg['visualization']['enable'] and not viz3_done and i == 0:
+                        write_pointcloud_with_values_html(
+                            points, aff2_scores,
+                            [(kp1_serial['index'], np.array(kp1_serial['xyz'])),
+                             (kp2_ser['index'], np.array(kp2_ser['xyz']))],
+                            os.path.join(obj_dir, 'viz_step3.html'), title='Affordance Second')
+                        viz3_done = True
+            else:
+                # Deterministic top-n selection for kp2 to avoid duplicates
+                top_k = int(cfg['aff2']['sampling'].get('top_k', N))
+                top_k = max(1, min(top_k, N))
+                order = np.argsort(aff2_scores.reshape(N))[::-1]
+                top_candidates = order[:top_k]
+                selected = top_candidates[:min(n_kp2, len(top_candidates))]
+                for j_idx, idx in enumerate(selected):
+                    kp2_ser = {"index": int(idx), "xyz": points[int(idx)].astype(np.float32).tolist()}
+                    kp2_list_i.append(kp2_ser)
+                    save_json(os.path.join(obj_dir, f"kp2_{i:02d}_{j_idx:02d}.json"), kp2_ser)
+                    if cfg['visualization']['enable'] and not viz3_done and i == 0:
+                        write_pointcloud_with_values_html(
+                            points, aff2_scores,
+                            [(kp1_serial['index'], np.array(kp1_serial['xyz'])),
+                             (kp2_ser['index'], np.array(kp2_ser['xyz']))],
+                            os.path.join(obj_dir, 'viz_step3.html'), title='Affordance Second')
+                        viz3_done = True
             # attach kp2 list back to kp1 item for downstream loops
             kp1_serial['kp2_list'] = kp2_list_i
         logger.info(f"Prepared kp2 candidates for {len(kp1_list)} kp1s (each up to {n_kp2})")

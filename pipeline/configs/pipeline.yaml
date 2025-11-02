@@ -32,6 +32,11 @@ multipose:
   kp1_samples: 1              # number of first-hand keypoints ("1")
   kp2_samples_per_kp1: 2      # number of second-hand keypoints per first-hand ("2")
   twist_count_per_pair: 1     # number of random twists per (kp1,kp2) pair ("3")
+  # Sampling mode: if true, sample kp1/kp2 by value (softmax over scores);
+  # if false, use top-k style (deterministic top-n for kp2 and dedup for kp1)
+  sample_by_value: false
+  temperature_kp1: 0.1        # softmax temperature for kp1 value sampling
+  temperature_kp2: 0.1        # softmax temperature for kp2 value sampling
 
 
 
