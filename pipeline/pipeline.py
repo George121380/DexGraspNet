@@ -313,6 +313,9 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
         script = os.path.join(repo_root, 'pipeline', 'utils', 'pose_optimizer.py')
         total_steps = int(cfg['optimizer']['steps']) if 'optimizer' in cfg and 'steps' in cfg['optimizer'] else int(cfg['opt']['optimizer']['steps']) if 'optimizer' in cfg['opt'] else 100
 
+        # Collect all optimized entries to merge at the end
+        opt_entries_all = []
+
         for i, kp1_serial in enumerate(kp1_list):
             left_kp_path = os.path.join(obj_dir, f'kpleft_{i:02d}.npy')
             kp2_list = kp1_serial.get('kp2_list', [])
@@ -459,6 +462,8 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                         )
                         opt_entry_path = os.path.join(obj_dir, f'optimized_pose_{suffix}.npy')
                         save_bimanual_entry(opt_entry_path, opt_entry)
+                        # Append to merged list
+                        opt_entries_all.append(opt_entry)
                         _render_bimanual_viz(
                             opt_entry_path,
                             obj_name,
@@ -474,6 +479,15 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                             points_path=os.path.join(obj_dir, 'points.npy'),
                         )
                         logger.info(f"Saved visualization: viz_step5_{suffix}.html")
+
+        # Save merged npy for this object if any entries were generated
+        if len(opt_entries_all) > 0:
+            merged_path = os.path.join(obj_dir, f"{obj_name}.npy")
+            try:
+                np.save(merged_path, np.array(opt_entries_all, dtype=object))
+                logger.info(f"Merged optimized poses saved: {merged_path} (count={len(opt_entries_all)})")
+            except Exception as e:
+                logger.exception(f"Failed to save merged poses to {merged_path}: {e}")
 
 
 def json_load(path: str) -> Dict:
