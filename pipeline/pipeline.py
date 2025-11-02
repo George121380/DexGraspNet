@@ -401,17 +401,60 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
         # Collect all optimized entries to merge at the end
         opt_entries_all = []
 
+        # Prepare all (i,j) pairs
+        all_pairs = []
         for i, kp1_serial in enumerate(kp1_list):
-            left_kp_path = os.path.join(obj_dir, f'kpleft_{i:02d}.npy')
             kp2_list = kp1_serial.get('kp2_list', [])
-            for j, _kp2 in enumerate(kp2_list):
+            for j, _ in enumerate(kp2_list):
+                all_pairs.append((i, j))
+
+        random_twist_count = int(mp_cfg.get('twist_count_per_pair', cfg['dex']['dexgrasp'].get('init', {}).get('random_twist_count', 1)))
+        pairs_per_batch = max(1, int(mp_cfg.get('pairs_per_batch', 1)))
+        max_parallel = max(1, int(mp_cfg.get('max_parallel', 1)))
+
+        # Base env overrides
+        base_env = os.environ.copy()
+        energy_cfg = cfg['opt'].get('energy', {}) if 'opt' in cfg else {}
+        if energy_cfg:
+            if energy_cfg.get('w_dis') is not None:
+                base_env['PIPELINE_W_DIS'] = str(float(energy_cfg['w_dis']))
+            if energy_cfg.get('w_pen') is not None:
+                base_env['PIPELINE_W_PEN'] = str(float(energy_cfg['w_pen']))
+            if energy_cfg.get('w_spen') is not None:
+                base_env['PIPELINE_W_SPEN'] = str(float(energy_cfg['w_spen']))
+            if energy_cfg.get('w_joints') is not None:
+                base_env['PIPELINE_W_JOINTS'] = str(float(energy_cfg['w_joints']))
+            if energy_cfg.get('w_vew') is not None:
+                base_env['PIPELINE_W_VEW'] = str(float(energy_cfg['w_vew']))
+        opt_cfg_env = cfg['opt'].get('optimizer', {}) if 'opt' in cfg else {}
+        if opt_cfg_env.get('noise_factor') is not None:
+            base_env['PIPELINE_NOISE_FACTOR'] = str(float(opt_cfg_env['noise_factor']))
+
+        # Consistent object scale
+        try:
+            obj_scale_val = load_default_scale(
+                obj_name,
+                vis_cfg.get('ref_scale_dir', ''),
+                vis_cfg.get('ref_scale_file', ''),
+                vis_cfg.get('ref_scale_value', None),
+            )
+        except Exception:
+            obj_scale_val = None
+
+        import subprocess, time
+
+        for start in range(0, len(all_pairs), pairs_per_batch):
+            batch = all_pairs[start:start + pairs_per_batch]
+            logger.info(f"[Batch] Processing pairs {batch}")
+
+            tasks = []
+            for (i, j) in batch:
+                left_kp_path = os.path.join(obj_dir, f'kpleft_{i:02d}.npy')
                 right_kp_path = os.path.join(obj_dir, f'kpright_{i:02d}_{j:02d}.npy')
-                random_twist_count = int(mp_cfg.get('twist_count_per_pair', cfg['dex']['dexgrasp'].get('init', {}).get('random_twist_count', 1)))
                 for k in range(max(1, random_twist_count)):
                     suffix = f"{i:02d}_{j:02d}_{k:02d}"
                     dex_entry_path = os.path.join(obj_dir, f'dexgrasp_entry_{suffix}.npy')
                     if not os.path.exists(dex_entry_path):
-                        # skip if not initialized (e.g., dexgrasp mode kept single-run)
                         continue
                     out_npz = os.path.join(obj_dir, f"optimized_{suffix}.npz")
                     out_json = os.path.join(obj_dir, f"optimized_{suffix}.json")
@@ -430,18 +473,8 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                     else:
                         dex_npz_path = os.path.join(obj_dir, cfg['dex']['io']['save_npz_name'])
                         cmd.extend(['--dex_npz', dex_npz_path])
-                    # Pass consistent object scale to optimizer (match viz/Dex scale)
-                    try:
-                        obj_scale = load_default_scale(
-                            obj_name,
-                            vis_cfg.get('ref_scale_dir', ''),
-                            vis_cfg.get('ref_scale_file', ''),
-                            vis_cfg.get('ref_scale_value', None),
-                        )
-                        if obj_scale is not None:
-                            cmd.extend(['--object_scale', str(float(obj_scale))])
-                    except Exception:
-                        pass
+                    if obj_scale_val is not None:
+                        cmd.extend(['--object_scale', str(float(obj_scale_val))])
                     opt_vis_cfg = cfg['opt'].get('visualization', {})
                     frames_dir = None
                     video_path = None
@@ -460,110 +493,105 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                         ])
                         if opt_vis_cfg.get('show_contacts', False):
                             cmd.append('--show_contacts')
-                    # Optional optimizer overrides for stability
-                    try:
-                        if 'optimizer' in cfg['opt'] and cfg['opt']['optimizer'].get('step_size') is not None:
-                            cmd.extend(['--opt_step_size', str(float(cfg['opt']['optimizer']['step_size']))])
-                        if 'optimizer' in cfg['opt'] and cfg['opt']['optimizer'].get('accept_warmup') is not None:
-                            cmd.extend(['--accept_warmup', str(int(cfg['opt']['optimizer']['accept_warmup']))])
-                        if 'optimizer' in cfg['opt'] and cfg['opt']['optimizer'].get('freeze_joints_steps') is not None:
-                            cmd.extend(['--freeze_joints_steps', str(int(cfg['opt']['optimizer']['freeze_joints_steps']))])
-                        if 'optimizer' in cfg['opt'] and cfg['opt']['optimizer'].get('freeze_translation_steps') is not None:
-                            cmd.extend(['--freeze_translation_steps', str(int(cfg['opt']['optimizer']['freeze_translation_steps']))])
-                    except Exception:
-                        pass
                     stdout_path = os.path.join(logs_dir, f'biman_opt_{suffix}_stdout.txt')
                     stderr_path = os.path.join(logs_dir, f'biman_opt_{suffix}_stderr.txt')
                     progress_file = os.path.join(logs_dir, f'biman_opt_progress_{suffix}.txt')
                     cmd.extend(['--progress_file', progress_file])
-                    logger.info(f"Launching BimanGrasp subprocess for {suffix} ...")
-                    # Run asynchronously to show progress
-                    import subprocess, shlex, time
-                    env = os.environ.copy()
-                    env['PIPELINE_PROGRESS_FILE'] = progress_file
-                    # Energy weights overrides via env
-                    energy_cfg = cfg['opt'].get('energy', {}) if 'opt' in cfg else {}
-                    if energy_cfg:
-                        if energy_cfg.get('w_dis') is not None:
-                            env['PIPELINE_W_DIS'] = str(float(energy_cfg['w_dis']))
-                        if energy_cfg.get('w_pen') is not None:
-                            env['PIPELINE_W_PEN'] = str(float(energy_cfg['w_pen']))
-                        if energy_cfg.get('w_spen') is not None:
-                            env['PIPELINE_W_SPEN'] = str(float(energy_cfg['w_spen']))
-                        if energy_cfg.get('w_joints') is not None:
-                            env['PIPELINE_W_JOINTS'] = str(float(energy_cfg['w_joints']))
-                        if energy_cfg.get('w_vew') is not None:
-                            env['PIPELINE_W_VEW'] = str(float(energy_cfg['w_vew']))
-                    # noise factor
-                    opt_cfg = cfg['opt'].get('optimizer', {}) if 'opt' in cfg else {}
-                    if opt_cfg.get('noise_factor') is not None:
-                        env['PIPELINE_NOISE_FACTOR'] = str(float(opt_cfg['noise_factor']))
-                    with open(stdout_path, 'w') as f_out, open(stderr_path, 'w') as f_err:
-                        proc = subprocess.Popen(cmd, stdout=f_out, stderr=f_err, text=True, env=env)
-                        last = -1
-                        while True:
-                            rc = proc.poll()
-                            try:
-                                if os.path.exists(progress_file):
-                                    with open(progress_file, 'r') as pf:
-                                        cur = int(pf.read().strip() or '0')
-                                    if cur != last:
-                                        logger.info(f"[Opt {suffix}] progress {cur}/{total_steps} ({(cur/ max(total_steps,1))*100:.1f}%)")
-                                        last = cur
-                            except Exception:
-                                pass
-                            if rc is not None:
-                                break
-                            time.sleep(1.0)
-                    if rc != 0:
-                        raise RuntimeError(f"BimanGrasp optimization failed for {suffix}: rc={rc}")
-                    logger.info(f"BimanGrasp outputs: {out_npz}, {out_json}")
-                    if video_path and os.path.exists(video_path):
-                        logger.info(f"Optimization video saved: {video_path}")
+                    env = {**base_env, 'PIPELINE_PROGRESS_FILE': progress_file}
+                    tasks.append({
+                        'suffix': suffix,
+                        'cmd': cmd,
+                        'env': env,
+                        'stdout_path': stdout_path,
+                        'stderr_path': stderr_path,
+                        'dex_entry_path': dex_entry_path,
+                        'left_kp_path': left_kp_path,
+                        'right_kp_path': right_kp_path,
+                        'out_json': out_json,
+                        'video_path': video_path,
+                    })
 
-                    if os.path.exists(out_json):
-                        data = json_load(out_json)
-                        # load dex_entry to get starting poses for baseline viz
-                        try:
-                            dex_arr = np.load(dex_entry_path, allow_pickle=True)
-                            dex_entry = dex_arr[0].item() if hasattr(dex_arr[0], 'item') else dex_arr[0]
-                            scale_val = float(dex_entry.get('scale', 1.0))
-                            left_st = dex_entry.get('qpos_left', {})
-                            right_st = dex_entry.get('qpos_right', {})
-                        except Exception:
-                            scale_val = float(load_default_scale(
-                                obj_name,
-                                vis_cfg.get('ref_scale_dir', ''),
-                                vis_cfg.get('ref_scale_file', ''),
-                                vis_cfg.get('ref_scale_value', None),
-                            ))
-                            left_st, right_st = {}, {}
-                        opt_entry = build_bimanual_entry(
-                            data['left_qpos'],
-                            data['right_qpos'],
-                            scale_val,
-                            left_st=left_st,
-                            right_st=right_st,
-                        )
-                        opt_entry_path = os.path.join(obj_dir, f'optimized_pose_{suffix}.npy')
-                        save_bimanual_entry(opt_entry_path, opt_entry)
-                        # Append to merged list
-                        opt_entries_all.append(opt_entry)
-                        _render_bimanual_viz(
-                            opt_entry_path,
-                            obj_name,
-                            os.path.join(obj_dir, f'viz_step5_{suffix}.html'),
-                            vis_cfg,
-                            cfg['envs']['optimizer_env'],
-                            pk_root,
-                            logs_dir,
-                            logger,
-                            baseline_entry=dex_entry_path,
-                            kpleft_path=left_kp_path,
-                            kpright_path=right_kp_path,
-                            points_path=os.path.join(obj_dir, 'points.npy'),
-                        )
-                        logger.info(f"Saved visualization: viz_step5_{suffix}.html")
+            running = []
+            it = iter(tasks)
+
+            def _start():
+                try:
+                    t = next(it)
+                except StopIteration:
+                    return False
+                f_out = open(t['stdout_path'], 'w')
+                f_err = open(t['stderr_path'], 'w')
+                p = subprocess.Popen(t['cmd'], stdout=f_out, stderr=f_err, text=True, env=t['env'])
+                t['proc'] = p
+                t['f_out'] = f_out
+                t['f_err'] = f_err
+                running.append(t)
+                logger.info(f"[Batch] Launched optimizer for {t['suffix']}")
+                return True
+
+            for _ in range(min(max_parallel, len(tasks))):
+                _start()
+
+            while running:
+                for t in list(running):
+                    rc = t['proc'].poll()
+                    if rc is None:
+                        continue
+                    try:
+                        t['f_out'].close(); t['f_err'].close()
+                    except Exception:
+                        pass
+                    running.remove(t)
+                    if rc != 0:
+                        logger.error(f"Optimizer failed for {t['suffix']}: rc={rc}")
+                    else:
+                        logger.info(f"Optimizer done for {t['suffix']}")
+                        if os.path.exists(t['out_json']):
+                            data = json_load(t['out_json'])
+                            try:
+                                dex_arr = np.load(t['dex_entry_path'], allow_pickle=True)
+                                dex_entry = dex_arr[0].item() if hasattr(dex_arr[0], 'item') else dex_arr[0]
+                                scale_val = float(dex_entry.get('scale', 1.0))
+                                left_st = dex_entry.get('qpos_left', {})
+                                right_st = dex_entry.get('qpos_right', {})
+                            except Exception:
+                                scale_val = float(load_default_scale(
+                                    obj_name,
+                                    vis_cfg.get('ref_scale_dir', ''),
+                                    vis_cfg.get('ref_scale_file', ''),
+                                    vis_cfg.get('ref_scale_value', None),
+                                ))
+                                left_st, right_st = {}, {}
+                            opt_entry = build_bimanual_entry(
+                                data['left_qpos'],
+                                data['right_qpos'],
+                                scale_val,
+                                left_st=left_st,
+                                right_st=right_st,
+                            )
+                            opt_entry_path = os.path.join(obj_dir, f"optimized_pose_{t['suffix']}.npy")
+                            save_bimanual_entry(opt_entry_path, opt_entry)
+                            opt_entries_all.append(opt_entry)
+                            try:
+                                _render_bimanual_viz(
+                                    opt_entry_path,
+                                    obj_name,
+                                    os.path.join(obj_dir, f"viz_step5_{t['suffix']}.html"),
+                                    vis_cfg,
+                                    cfg['envs']['optimizer_env'],
+                                    pk_root,
+                                    logs_dir,
+                                    logger,
+                                    baseline_entry=t['dex_entry_path'],
+                                    kpleft_path=t['left_kp_path'],
+                                    kpright_path=t['right_kp_path'],
+                                    points_path=os.path.join(obj_dir, 'points.npy'),
+                                )
+                                logger.info(f"Saved visualization: viz_step5_{t['suffix']}.html")
+                            except Exception:
+                                logger.warning(f"Failed to render viz_step5 for {t['suffix']}")
+                    _start()
+                time.sleep(0.5)
 
         # Save merged npy for this object if any entries were generated
         if len(opt_entries_all) > 0:
