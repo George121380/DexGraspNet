@@ -120,12 +120,15 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
     logger.info(f"Point cloud loaded: shape={points.shape}, dtype={points.dtype}")
     save_npy(os.path.join(obj_dir, 'points.npy'), points)
 
+    # Centralized multipose controls (fallback to sub-configs if absent)
+    mp_cfg = dict(cfg.get('multipose', {}))
+
     # Step 2: Affordance First → multiple kp1 candidates
     with time_block("Affordance First", logger):
         logger.info("Running affordance-first inference ...")
         aff1_scores = aff1.predict(points)
         logger.info(f"Aff1 scores: min={float(np.min(aff1_scores)):.4f}, max={float(np.max(aff1_scores)):.4f}")
-        n_kp1 = int(cfg['aff1']['sampling'].get('num_samples', 1))
+        n_kp1 = int(mp_cfg.get('kp1_samples', cfg['aff1']['sampling'].get('num_samples', 1)))
         kp1_list = []
         used_idx_1 = set()
         max_trials = max(10, n_kp1 * 10)
@@ -158,7 +161,7 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
     # Step 3: Affordance Second → multiple kp2 per kp1
     with time_block("Affordance Second", logger):
         logger.info("Running affordance-second inference ...")
-        n_kp2 = int(cfg['aff2']['sampling'].get('num_samples', 1))
+        n_kp2 = int(mp_cfg.get('kp2_samples_per_kp1', cfg['aff2']['sampling'].get('num_samples', 1)))
         # For visualization, we will save only the first pair (kp1_00, kp2_00)
         viz3_done = False
         for i, kp1_serial in enumerate(kp1_list):
@@ -201,7 +204,7 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
     # Step 4: Pose Initialization (DexGrasp or Keypoint init) via conda run
     with time_block("DexGrasp Pose Generation", logger):
         init_cfg = cfg['dex']['dexgrasp'].get('init', {})
-        random_twist_count = int(init_cfg.get('random_twist_count', 1))
+        random_twist_count = int(mp_cfg.get('twist_count_per_pair', init_cfg.get('random_twist_count', 1)))
         # Iterate over all kp1/kp2 combinations and twists
         for i, kp1_serial in enumerate(kp1_list):
             left_kp_path = os.path.join(obj_dir, f'kpleft_{i:02d}.npy')
@@ -315,7 +318,7 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             kp2_list = kp1_serial.get('kp2_list', [])
             for j, _kp2 in enumerate(kp2_list):
                 right_kp_path = os.path.join(obj_dir, f'kpright_{i:02d}_{j:02d}.npy')
-                random_twist_count = int(cfg['dex']['dexgrasp'].get('init', {}).get('random_twist_count', 1))
+                random_twist_count = int(mp_cfg.get('twist_count_per_pair', cfg['dex']['dexgrasp'].get('init', {}).get('random_twist_count', 1)))
                 for k in range(max(1, random_twist_count)):
                     suffix = f"{i:02d}_{j:02d}_{k:02d}"
                     dex_entry_path = os.path.join(obj_dir, f'dexgrasp_entry_{suffix}.npy')
