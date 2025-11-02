@@ -40,6 +40,35 @@ def write_pointcloud_with_values_html(
     fig.write_html(out_path)
 
 
+def write_values_histogram_html(
+    values: np.ndarray,
+    out_path: str,
+    title: str = "Scores Distribution",
+    bins: int = 64,
+) -> None:
+    v = np.asarray(values).reshape(-1)
+    v = v[np.isfinite(v)]
+    if v.size == 0:
+        v = np.array([0.0])
+    # Histogram
+    hist = go.Histogram(x=v, nbinsx=int(max(1, bins)), name='hist', opacity=0.75)
+    # CDF
+    vs = np.sort(v)
+    y = np.linspace(0, 1, vs.size)
+    cdf = go.Scatter(x=vs, y=y, mode='lines', name='cdf', yaxis='y2')
+    fig = go.Figure(data=[hist, cdf])
+    fig.update_layout(
+        title=title,
+        title_x=0.5,
+        xaxis=dict(title='score'),
+        yaxis=dict(title='count'),
+        yaxis2=dict(title='cdf', overlaying='y', side='right', range=[0, 1]),
+        bargap=0.02,
+        template='plotly_white',
+    )
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.write_html(out_path)
+
 TRANSLATION_NAMES = ['WRJTx', 'WRJTy', 'WRJTz']
 ROTATION_NAMES = ['WRJRx', 'WRJRy', 'WRJRz']
 JOINT_NAMES = [

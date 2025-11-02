@@ -15,6 +15,7 @@ from pipeline.utils.run_utils import load_yaml, resolve_config_paths, make_sessi
 from pipeline.utils.io import load_point_cloud, save_json, save_npy, snapshot_config
 from pipeline.utils.viz import (
     write_pointcloud_with_values_html,
+    write_values_histogram_html,
     build_bimanual_entry,
     save_bimanual_entry,
     load_default_scale,
@@ -186,6 +187,12 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                 used_idx_1.add(int(kp1['index']))
                 save_json(os.path.join(obj_dir, f"kp1_{len(kp1_list)-1:02d}.json"), kp1_serial)
         np.save(os.path.join(obj_dir, 'aff1.npy'), aff1_scores)
+        # Distribution plot for aff1
+        try:
+            write_values_histogram_html(aff1_scores, os.path.join(obj_dir, 'aff1_hist.html'), title='Affordance First - Scores Distribution')
+            logger.info("Saved histogram: aff1_hist.html")
+        except Exception:
+            logger.warning("Failed to write aff1 histogram")
         if len(kp1_list) == 0:
             raise RuntimeError("Affordance First sampling produced no keypoints")
         logger.info(f"Sampled {len(kp1_list)} kp1 candidates")
@@ -207,6 +214,12 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             logger.info(f"[kp1 {i}] Aff2 scores: min={float(np.min(aff2_scores)):.4f}, max={float(np.max(aff2_scores)):.4f}")
             # save aff2 scores optionally per kp1
             np.save(os.path.join(obj_dir, f'aff2_{i:02d}.npy'), aff2_scores)
+            # Distribution plot for aff2
+            try:
+                write_values_histogram_html(aff2_scores, os.path.join(obj_dir, f'aff2_hist_{i:02d}.html'), title=f'Affordance Second (kp1 {i}) - Scores Distribution')
+                logger.info(f"Saved histogram: aff2_hist_{i:02d}.html")
+            except Exception:
+                logger.warning(f"Failed to write aff2 histogram for kp1 {i}")
             N = points.shape[0]
             kp2_list_i = []
             if sample_by_value:
