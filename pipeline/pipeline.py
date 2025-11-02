@@ -373,21 +373,22 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                         dex_entry = build_bimanual_entry(left_vec, right_vec, scale)
                         save_bimanual_entry(dex_entry_path, dex_entry)
 
-                    # Viz step4 per combo
-                    _render_bimanual_viz(
-                        dex_entry_path,
-                        obj_name,
-                        os.path.join(obj_dir, f'viz_step4_{suffix}.html'),
-                        vis_cfg,
-                        cfg['envs']['optimizer_env'],
-                        pk_root,
-                        logs_dir,
-                        logger,
-                        kpleft_path=left_kp_path,
-                        kpright_path=right_kp_path,
-                        points_path=os.path.join(obj_dir, 'points.npy'),
-                    )
-                    logger.info(f"Saved visualization: viz_step4_{suffix}.html")
+                    # Viz step4 per combo (guarded by global visualization.enable)
+                    if cfg['visualization']['enable']:
+                        _render_bimanual_viz(
+                            dex_entry_path,
+                            obj_name,
+                            os.path.join(obj_dir, f'viz_step4_{suffix}.html'),
+                            vis_cfg,
+                            cfg['envs']['optimizer_env'],
+                            pk_root,
+                            logs_dir,
+                            logger,
+                            kpleft_path=left_kp_path,
+                            kpright_path=right_kp_path,
+                            points_path=os.path.join(obj_dir, 'points.npy'),
+                        )
+                        logger.info(f"Saved visualization: viz_step4_{suffix}.html")
 
     # Step 5: Optimization via BimanGrasp (iterate all initialized entries)
     with time_block("BimanGrasp Optimization", logger):
@@ -518,24 +519,25 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                         opt_entry_path = os.path.join(obj_dir, f'optimized_pose_{suffix}.npy')
                         save_bimanual_entry(opt_entry_path, opt_entry)
                         opt_entries_all.append(opt_entry)
-                        try:
-                            _render_bimanual_viz(
-                                opt_entry_path,
-                                obj_name,
-                                os.path.join(obj_dir, f'viz_step5_{suffix}.html'),
-                                vis_cfg,
-                                cfg['envs']['optimizer_env'],
-                                pk_root,
-                                logs_dir,
-                                logger,
-                                baseline_entry=dex_entry_path,
-                                kpleft_path=left_kp_path,
-                                kpright_path=right_kp_path,
-                                points_path=os.path.join(obj_dir, 'points.npy'),
-                            )
-                            logger.info(f"Saved visualization: viz_step5_{suffix}.html")
-                        except Exception:
-                            logger.warning(f"Failed to render viz_step5 for {suffix}")
+                        if cfg['visualization']['enable']:
+                            try:
+                                _render_bimanual_viz(
+                                    opt_entry_path,
+                                    obj_name,
+                                    os.path.join(obj_dir, f'viz_step5_{suffix}.html'),
+                                    vis_cfg,
+                                    cfg['envs']['optimizer_env'],
+                                    pk_root,
+                                    logs_dir,
+                                    logger,
+                                    baseline_entry=dex_entry_path,
+                                    kpleft_path=left_kp_path,
+                                    kpright_path=right_kp_path,
+                                    points_path=os.path.join(obj_dir, 'points.npy'),
+                                )
+                                logger.info(f"Saved visualization: viz_step5_{suffix}.html")
+                            except Exception:
+                                logger.warning(f"Failed to render viz_step5 for {suffix}")
                 continue
 
             # Multiprocess path (existing)
@@ -664,24 +666,25 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                             opt_entry_path = os.path.join(obj_dir, f"optimized_pose_{t['suffix']}.npy")
                             save_bimanual_entry(opt_entry_path, opt_entry)
                             opt_entries_all.append(opt_entry)
-                            try:
-                                _render_bimanual_viz(
-                                    opt_entry_path,
-                                    obj_name,
-                                    os.path.join(obj_dir, f"viz_step5_{t['suffix']}.html"),
-                                    vis_cfg,
-                                    cfg['envs']['optimizer_env'],
-                                    pk_root,
-                                    logs_dir,
-                                    logger,
-                                    baseline_entry=t['dex_entry_path'],
-                                    kpleft_path=t['left_kp_path'],
-                                    kpright_path=t['right_kp_path'],
-                                    points_path=os.path.join(obj_dir, 'points.npy'),
-                                )
-                                logger.info(f"Saved visualization: viz_step5_{t['suffix']}.html")
-                            except Exception:
-                                logger.warning(f"Failed to render viz_step5 for {t['suffix']}")
+                            if cfg['visualization']['enable']:
+                                try:
+                                    _render_bimanual_viz(
+                                        opt_entry_path,
+                                        obj_name,
+                                        os.path.join(obj_dir, f"viz_step5_{t['suffix']}.html"),
+                                        vis_cfg,
+                                        cfg['envs']['optimizer_env'],
+                                        pk_root,
+                                        logs_dir,
+                                        logger,
+                                        baseline_entry=t['dex_entry_path'],
+                                        kpleft_path=t['left_kp_path'],
+                                        kpright_path=t['right_kp_path'],
+                                        points_path=os.path.join(obj_dir, 'points.npy'),
+                                    )
+                                    logger.info(f"Saved visualization: viz_step5_{t['suffix']}.html")
+                                except Exception:
+                                    logger.warning(f"Failed to render viz_step5 for {t['suffix']}")
                     _start()
                 time.sleep(0.5)
 
