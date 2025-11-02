@@ -135,12 +135,33 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             # Softmax sampling without replacement
             N = points.shape[0]
             temp1 = float(mp_cfg.get('temperature_kp1', cfg['aff1']['sampling'].get('temperature', 0.1)))
-            logits = aff1_scores.reshape(N) / max(1e-6, temp1)
-            logits = logits - logits.max()
+            s = aff1_scores.reshape(N)
+            # bottom-quantile filtering
+            q1 = float(mp_cfg.get('min_quantile_kp1', 0.0))
+            if q1 > 0.0:
+                th = float(np.quantile(s, min(max(q1, 0.0), 0.99)))
+                keep = s >= th
+            else:
+                keep = np.ones_like(s, dtype=bool)
+            idxs = np.arange(N)[keep]
+            s_keep = s[keep]
+            if idxs.size == 0:
+                idxs = np.arange(N)
+                s_keep = s
+            # normalize to [0,1]
+            s_min, s_max = float(s_keep.min()), float(s_keep.max())
+            denom = (s_max - s_min) + 1e-8
+            s_norm = (s_keep - s_min) / denom
+            if not np.isfinite(s_norm).all() or s_norm.sum() <= 1e-12:
+                s_norm = np.ones_like(s_keep) / max(1, s_keep.size)
+            logits = s_norm / max(1e-6, temp1)
+            logits = logits - float(np.max(logits))
             probs = np.exp(logits)
-            probs = probs / (probs.sum() + 1e-8)
-            k = min(n_kp1, N)
-            sel = np.random.choice(np.arange(N), size=k, replace=False, p=probs)
+            Z = float(np.sum(probs)) + 1e-12
+            probs = probs / Z
+            k = min(n_kp1, idxs.size)
+            sel_local = np.random.choice(np.arange(idxs.size), size=k, replace=False, p=probs)
+            sel = idxs[sel_local]
             for t, idx in enumerate(sel):
                 kp1_serial = {"index": int(idx), "xyz": points[int(idx)].astype(np.float32).tolist()}
                 kp1_list.append(kp1_serial)
@@ -190,12 +211,32 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             kp2_list_i = []
             if sample_by_value:
                 temp2 = float(mp_cfg.get('temperature_kp2', cfg['aff2']['sampling'].get('temperature', 0.1)))
-                logits = aff2_scores.reshape(N) / max(1e-6, temp2)
-                logits = logits - logits.max()
+                s = aff2_scores.reshape(N)
+                # bottom-quantile filtering
+                q2 = float(mp_cfg.get('min_quantile_kp2', 0.0))
+                if q2 > 0.0:
+                    th = float(np.quantile(s, min(max(q2, 0.0), 0.99)))
+                    keep = s >= th
+                else:
+                    keep = np.ones_like(s, dtype=bool)
+                idxs = np.arange(N)[keep]
+                s_keep = s[keep]
+                if idxs.size == 0:
+                    idxs = np.arange(N)
+                    s_keep = s
+                s_min, s_max = float(s_keep.min()), float(s_keep.max())
+                denom = (s_max - s_min) + 1e-8
+                s_norm = (s_keep - s_min) / denom
+                if not np.isfinite(s_norm).all() or s_norm.sum() <= 1e-12:
+                    s_norm = np.ones_like(s_keep) / max(1, s_keep.size)
+                logits = s_norm / max(1e-6, temp2)
+                logits = logits - float(np.max(logits))
                 probs = np.exp(logits)
-                probs = probs / (probs.sum() + 1e-8)
-                k = min(n_kp2, N)
-                sel = np.random.choice(np.arange(N), size=k, replace=False, p=probs)
+                Z = float(np.sum(probs)) + 1e-12
+                probs = probs / Z
+                k = min(n_kp2, idxs.size)
+                sel_local = np.random.choice(np.arange(idxs.size), size=k, replace=False, p=probs)
+                sel = idxs[sel_local]
                 for j_idx, idx in enumerate(sel):
                     kp2_ser = {"index": int(idx), "xyz": points[int(idx)].astype(np.float32).tolist()}
                     kp2_list_i.append(kp2_ser)
