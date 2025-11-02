@@ -170,23 +170,19 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
             logger.info(f"[kp1 {i}] Aff2 scores: min={float(np.min(aff2_scores)):.4f}, max={float(np.max(aff2_scores)):.4f}")
             # save aff2 scores optionally per kp1
             np.save(os.path.join(obj_dir, f'aff2_{i:02d}.npy'), aff2_scores)
-            used_idx_2 = set()
+            # Deterministic top-n selection for kp2 to avoid duplicates
+            N = points.shape[0]
+            top_k = int(cfg['aff2']['sampling'].get('top_k', N))
+            top_k = max(1, min(top_k, N))
+            # get top_k indices by score descending
+            order = np.argsort(aff2_scores.reshape(N))[::-1]
+            top_candidates = order[:top_k]
+            selected = top_candidates[:min(n_kp2, len(top_candidates))]
             kp2_list_i = []
-            trials = 0
-            max_trials = max(10, n_kp2 * 10)
-            while len(kp2_list_i) < n_kp2 and trials < max_trials:
-                trials += 1
-                kp2 = aff2.sample_keypoint(
-                    points, aff2_scores,
-                    top_k=cfg['aff2']['sampling']['top_k'],
-                    temperature=cfg['aff2']['sampling']['temperature']
-                )
-                if int(kp2['index']) in used_idx_2:
-                    continue
-                kp2_ser = _serialize_keypoint(kp2)
+            for j_idx, idx in enumerate(selected):
+                kp2_ser = {"index": int(idx), "xyz": points[int(idx)].astype(np.float32).tolist()}
                 kp2_list_i.append(kp2_ser)
-                used_idx_2.add(int(kp2['index']))
-                save_json(os.path.join(obj_dir, f"kp2_{i:02d}_{len(kp2_list_i)-1:02d}.json"), kp2_ser)
+                save_json(os.path.join(obj_dir, f"kp2_{i:02d}_{j_idx:02d}.json"), kp2_ser)
                 if cfg['visualization']['enable'] and not viz3_done and i == 0:
                     write_pointcloud_with_values_html(
                         points, aff2_scores,
