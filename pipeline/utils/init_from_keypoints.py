@@ -156,7 +156,7 @@ def main():
         # Desired palm normal points from kp toward object centroid so the normal line passes through both
         dir_to_center = centroid - kp
         dir_norm = np.linalg.norm(dir_to_center) + 1e-8
-        # Flip to let palm face the object (previous为手背朝向物体)
+        # Flip to let the palm face the object (previously the back of hand faced the object)
         n = -dir_to_center / dir_norm  # outward palm normal toward object
         # Desired palm center on the same line; move along outward normal n to远离物体
         p_center = kp + n * float(args.offset)
@@ -171,7 +171,7 @@ def main():
     posL, eulL = compute_one(kpL, 'left', n_local_L, palm_off_L)
     posR, eulR = compute_one(kpR, 'right', n_local_R, palm_off_R)
 
-    # Slightly curled canonical finger poses (same为初始化模块里的mu)
+    # Slightly curled canonical finger poses (same as the initialization module's mu)
     mu_left = np.array([
         0.1, 0, -0.6, 0, 0, 0, -0.6, 0, -0.1, 0, -0.6, 0,
         0, -0.2, 0, -0.6, 0, 0, -1.2, 0, -0.2, 0

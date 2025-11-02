@@ -4,19 +4,19 @@ optimizer:
   step_size: 0.002
   accept_warmup: 15
   freeze_joints_steps: 15
-  freeze_translation_steps: 10   # 早期固定手腕平移，防止整体漂移
-  noise_factor: 0.05             # 早期降低Langevin噪声（默认0.1）
+  freeze_translation_steps: 10   # Freeze wrist translation in early steps to avoid global drift
+  noise_factor: 0.05             # Reduce early Langevin noise (default 0.1)
 
 energy:
-  # 接触距离项：接触点到物体表面的距离（越近越好）
+  # Contact distance: distance from contact points to object surface (smaller is better)
   w_dis: 100.0
-  # 穿透项：手-物体的相互穿透深度（越小越好）
+  # Object-hand penetration: interpenetration depth between hand and object (smaller is better)
   w_pen: 125.0
-  # 自穿透项：手内部及双手之间的穿透（越小越好）
+  # Self-penetration: interpenetration within or between hands (smaller is better)
   w_spen: 10.0
-  # 关节限位项：越界的关节角度罚（越小越好）
+  # Joint limits: penalty for violating joint bounds (smaller is better)
   w_joints: 1.0
-  # Wrench体积/封闭性：抓取矩阵体积相关（越大越好，能量为其反比）
+  # Wrench ellipse/volume: grasp stability measure (larger is better; energy is inverse)
   w_vew: 0.5
 
 paths:
