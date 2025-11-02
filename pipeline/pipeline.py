@@ -4,6 +4,7 @@ import argparse
 from typing import Dict, Optional
 
 import numpy as np
+from tqdm import tqdm
 
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -484,7 +485,31 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                 logger.info(f"[Batch] Launching single-process batched optimizer for {len(entry_list)} entries ...")
                 import subprocess
                 with open(stdout_path, 'w') as f_out, open(stderr_path, 'w') as f_err:
-                    rc = subprocess.call(cmd, stdout=f_out, stderr=f_err, env=env, text=True)
+                    p = subprocess.Popen(cmd, stdout=f_out, stderr=f_err, env=env, text=True)
+                    last_step = 0
+                    bar = tqdm(total=int(total_steps), desc=f"optimizing(batch {start//max(1,pairs_per_batch)})", dynamic_ncols=True)
+                    try:
+                        while True:
+                            rc = p.poll()
+                            try:
+                                if os.path.exists(progress_file):
+                                    with open(progress_file, 'r') as pf:
+                                        s = pf.read().strip()
+                                        if s.isdigit():
+                                            cur = int(s)
+                                            if cur > last_step:
+                                                bar.update(min(cur, int(total_steps)) - last_step)
+                                                last_step = cur
+                            except Exception:
+                                pass
+                            if rc is not None:
+                                break
+                            time.sleep(0.2)
+                    finally:
+                        if last_step < int(total_steps):
+                            bar.update(int(total_steps) - last_step)
+                        bar.close()
+                    rc = p.returncode
                 if rc != 0:
                     raise RuntimeError(f"Batched optimization failed for batch start={start}: rc={rc}")
                 # Post-process results per suffix
@@ -606,6 +631,7 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                     })
 
             running = []
+            tasks_progress = tqdm(total=len(tasks), desc="optimizing(tasks)", dynamic_ncols=True)
             it = iter(tasks)
 
             def _start():
@@ -685,8 +711,10 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                                     logger.info(f"Saved visualization: viz_step5_{t['suffix']}.html")
                                 except Exception:
                                     logger.warning(f"Failed to render viz_step5 for {t['suffix']}")
+                    tasks_progress.update(1)
                     _start()
                 time.sleep(0.5)
+            tasks_progress.close()
 
         # Save merged npy for this object if any entries were generated
         if len(opt_entries_all) > 0:
