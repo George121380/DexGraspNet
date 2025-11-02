@@ -44,7 +44,7 @@ multipose:
   pairs_per_batch: 4          # how many (kp1,kp2) pairs to process per batch
   max_parallel: 1             # maximum concurrent optimizer processes
   # Process mode: "multiprocess" (N processes, 1 sample each) or "batched" (1 process, N samples)
-  process_mode: multiprocess
+  process_mode: batched
 
 
 
