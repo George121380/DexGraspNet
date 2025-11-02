@@ -127,7 +127,8 @@ def optimize_from_dexgrasp(
     if object_scale is not None:
         try:
             bs = int(batch_size)
-            scale_tensor = torch.full((bs, 1), float(object_scale), dtype=torch.float, device=device)
+            # ObjectModel expects shape (n_objects, batch_size_each) = (1, bs)
+            scale_tensor = torch.full((1, bs), float(object_scale), dtype=torch.float, device=device)
             obj.object_scale_tensor = scale_tensor
         except Exception:
             pass
@@ -423,7 +424,8 @@ def main():
         if args.object_scale is not None:
             try:
                 bs = int(left_pose.shape[0])
-                scale_tensor = torch.full((bs, 1), float(args.object_scale), dtype=torch.float, device=device)
+                # ObjectModel expects shape (n_objects, batch_size_each) = (1, bs)
+                scale_tensor = torch.full((1, bs), float(args.object_scale), dtype=torch.float, device=device)
                 obj.object_scale_tensor = scale_tensor
             except Exception:
                 pass
