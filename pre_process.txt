@@ -1,0 +1,5 @@
+python manifold.py --src data/raw_meshes/clocks --dst data/manifold/clocks --manifold_path ../thirdparty/ManifoldPlus/build/manifold
+
+python normalize.py --src data/manifold/clocks --dst data/normalized_models/clocks
+
+python decompose_list.py --src data/normalized_models/clocks --dst data/meshdata/clocks --coacd_path ../thirdparty/CoACD/build/main

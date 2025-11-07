@@ -62,9 +62,38 @@ class ObjectModel:
         self.object_mesh_list = []
         self.object_face_verts_list = []
         self.surface_points_tensor = []
+        def _resolve_coacd_dir(root_path: str, code: str):
+            # direct path
+            direct = os.path.join(root_path, code, "coacd")
+            if os.path.exists(os.path.join(direct, "decomposed.obj")):
+                return direct
+            # one-level category: root/*/code/coacd/decomposed.obj
+            try:
+                entries = os.listdir(root_path)
+            except Exception:
+                entries = []
+            for entry in entries:
+                cand = os.path.join(root_path, entry, code, "coacd")
+                if os.path.exists(os.path.join(cand, "decomposed.obj")):
+                    return cand
+            # recursive fallback: find any coacd/decomposed.obj whose parent dir matches code
+            for dirpath, dirnames, filenames in os.walk(root_path):
+                if os.path.basename(dirpath) == "coacd" and "decomposed.obj" in filenames:
+                    parent = os.path.basename(os.path.dirname(dirpath))
+                    if parent == code:
+                        return dirpath
+            # last resort: any coacd with decomposed.obj
+            for dirpath, dirnames, filenames in os.walk(root_path):
+                if os.path.basename(dirpath) == "coacd" and "decomposed.obj" in filenames:
+                    return dirpath
+            return None
+
         for object_code in object_code_list:
             self.object_scale_tensor.append(self.scale_choice[torch.randint(0, self.scale_choice.shape[0], (self.batch_size_each, ), device=self.device)])
-            self.object_mesh_list.append(tm.load(os.path.join(self.data_root_path, object_code, "coacd", "decomposed.obj"), force="mesh", process=False))
+            coacd_dir = _resolve_coacd_dir(self.data_root_path, object_code)
+            if coacd_dir is None:
+                raise FileNotFoundError(f"decomposed.obj for object '{object_code}' not found under '{self.data_root_path}'")
+            self.object_mesh_list.append(tm.load(os.path.join(coacd_dir, "decomposed.obj"), force="mesh", process=False))
             object_verts = torch.Tensor(self.object_mesh_list[-1].vertices).to(self.device)
             object_faces = torch.Tensor(self.object_mesh_list[-1].faces).long().to(self.device)
             self.object_face_verts_list.append(index_vertices_by_faces(object_verts, object_faces))

@@ -1,21 +1,20 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-.ipynb_checkpoints/
+# soft links
+meshdata
+experiments
+graspdata
+dataset
 
-# Environments
-.venv/
-venv/
-.env
-.env.*
-
-# Datasets (large)
-third_party/DexGraspNet/data/dataset/
+# data subdirectories (avoid pushing large datasets)
+data/meshdata/
+data/experiments/
+data/graspdata/
 data/dataset/
-**/dataset/**
 
-# Large file types
+# Caches
+__pycache__
+*.pyc
+
+# Large data files
 *.npy
 *.npz
 *.pt
@@ -30,166 +29,21 @@ data/dataset/
 *.tar.gz
 *.zip
 *.7z
-*.bag
 
-# Logs & build artifacts
+# Local-only tooling and folders
+.vscode/
+dev/
+asset_process/data/
+
+# Heavy thirdparty deps (keep only what's explicitly included)
+thirdparty/CoACD/
+thirdparty/ManifoldPlus/
+thirdparty/TorchSDF/
+thirdparty/pytorch3d/
+
+# Logs and build
 logs/
 **/logs/**
 build/
 dist/
 *.egg-info/
-# Byte-compiled / cache
-__pycache__/
-*.py[cod]
-*.pyo
-.ipynb_checkpoints/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Editors/IDEs
-.idea/
-.vscode/
-
-# Envs/build
-.env
-.venv/
-env/
-venv/
-build/
-dist/
-
-# Pipeline outputs and temp artifacts
-pipeline/outputs/
-pipeline/**/optimization_frames/
-pipeline/**/optimization.mp4
-pipeline/**/viz_step*.html
-
-# Inputs and large data (keep configs, ignore heavy assets)
-pipeline/pipeline_input/
-data/sapien_data/**
-
-# Third-party experiment outputs/checkpoints (do not version large artifacts)
-third_party/**/experiments/**
-third_party/**/ckpt/**
-third_party/**/checkpoints/**
-third_party/**/data/**
-
-# Logs
-*.log
-logs/
-**/logs/
-
-# Added by assistant to keep repo light
-# Ignore dev and third_party folders
-dev/
-
-# Keep folder but ignore contents; keep .gitkeep
-third_party/*
-!third_party/.gitkeep
-data/preprocess_data/*
-!data/preprocess_data/.gitkeep
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyTorch
-*.pth
-*.pt
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Environment variables
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-*.tmp
-*.temp
-
-# Data files (large files)
-processed_data/
-*.npy
-*.npz
-*.h5
-*.hdf5
-
-# Visualization outputs
-*.html
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.svg
-
-# Model checkpoints
-checkpoints/
-models/saved/
-*.ckpt
-*.pkl
-train_eval/checkpoints_all/
-train_eval/evaluation_results/
-
-# Additional ignores for large datasets
-data/**
-!data/preprocess_data/.gitkeep
-outputs/**
-third_party/**/data/**
-third_party/**/asset_process/data/**
-*.obj
-*.zip
-*.tar
-*.tar.gz
-*.stl
-*.ply
-*.glb
-*.gltf
-train_eval/checkpoints_all/**
-train_eval/evaluation_results/**

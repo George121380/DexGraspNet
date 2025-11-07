@@ -1,0 +1,14 @@
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6568 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6728 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6797 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6808 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6813 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6917 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6934 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6953 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 6963 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 7007 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 7015 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 7054 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 7064 --coacd_path ../thirdparty/CoACD/build/main
+python decompose.py --data_root_path data/normalized_models/clocks --result_path data/meshdata/clocks --object_code 7104 --coacd_path ../thirdparty/CoACD/build/main

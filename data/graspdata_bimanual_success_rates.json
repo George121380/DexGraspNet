@@ -1,0 +1,1208 @@
+{
+  "generated_at": "2025-11-06T01:30:09Z",
+  "base_dir": "/media/george/Projects/Research/2026-CVPR-BiDexHand/affordance-bidex/third_party/DexGraspNet/data/dataset/segments/bimanual",
+  "by_object": {
+    "core-bottle-1ae823260851f7d9ea600d1a6d9f6e07": {
+      "count": 1024,
+      "valid": 300,
+      "rate": 0.29296875
+    },
+    "core-bottle-1cf98e5b6fff5471c8724d5673a063a6": {
+      "count": 1024,
+      "valid": 107,
+      "rate": 0.1044921875
+    },
+    "core-bottle-1ffd7113492d375593202bf99dddc268": {
+      "count": 1024,
+      "valid": 178,
+      "rate": 0.173828125
+    },
+    "core-bottle-2a9817a43c5b3983bb13793251b29587": {
+      "count": 1024,
+      "valid": 121,
+      "rate": 0.1181640625
+    },
+    "core-bottle-2cc108080535bc51e7a14f6d159dcd47": {
+      "count": 1024,
+      "valid": 44,
+      "rate": 0.04296875
+    },
+    "core-bottle-2d1aa4e124c0dd5bf937e5c6aa3f9597": {
+      "count": 1024,
+      "valid": 276,
+      "rate": 0.26953125
+    },
+    "core-bottle-2d912be96504cb8cd5473a45f1da0225": {
+      "count": 1024,
+      "valid": 252,
+      "rate": 0.24609375
+    },
+    "core-bottle-2db802ef3de3d00618a36258eabc2b9c": {
+      "count": 1024,
+      "valid": 25,
+      "rate": 0.0244140625
+    },
+    "core-bottle-3ae3a9b74f96fef28fe15648f042f0d9": {
+      "count": 1024,
+      "valid": 0,
+      "rate": 0.0
+    },
+    "core-bottle-3b0e35ff08f09a85f0d11ae402ef940e": {
+      "count": 1024,
+      "valid": 3,
+      "rate": 0.0029296875
+    },
+    "ddg-gd_jar_poisson_014": {
+      "count": 1024,
+      "valid": 4,
+      "rate": 0.00390625
+    },
+    "mustard_bottle": {
+      "count": 1024,
+      "valid": 52,
+      "rate": 0.05078125
+    },
+    "Phillips_Milk_of_Magnesia_Saline_Laxative_Liquid_Original": {
+      "count": 1024,
+      "valid": 12,
+      "rate": 0.01171875
+    },
+    "Twinlab_100_Whey_Protein_Fuel_Cookies_and_Cream": {
+      "count": 1024,
+      "valid": 1,
+      "rate": 0.0009765625
+    },
+    "water_bottle": {
+      "count": 1024,
+      "valid": 5,
+      "rate": 0.0048828125
+    },
+    "Weston_No_22_Cajun_Jerky_Tonic_12_fl_oz_nLj64ZnGwDh": {
+      "count": 1024,
+      "valid": 29,
+      "rate": 0.0283203125
+    },
+    "Weston_No_33_Signature_Sausage_Tonic_12_fl_oz": {
+      "count": 1024,
+      "valid": 34,
+      "rate": 0.033203125
+    },
+    "Calphalon_Kitchen_Essentials_12_Cast_Iron_Fry_Pan_Black": {
+      "count": 1024,
+      "valid": 135,
+      "rate": 0.1318359375
+    },
+    "Cole_Hardware_Deep_Bowl_Good_Earth_1075": {
+      "count": 1024,
+      "valid": 95,
+      "rate": 0.0927734375
+    },
+    "Dixie_10_ounce_Bowls_35_ct": {
+      "count": 1024,
+      "valid": 8,
+      "rate": 0.0078125
+    },
+    "Ecoforms_Plant_Bowl_Turquoise_7": {
+      "count": 1024,
+      "valid": 94,
+      "rate": 0.091796875
+    },
+    "Ecoforms_Plant_Container_FB6_Tur": {
+      "count": 1024,
+      "valid": 123,
+      "rate": 0.1201171875
+    },
+    "Ecoforms_Plant_Container_SB9Turquoise": {
+      "count": 1024,
+      "valid": 118,
+      "rate": 0.115234375
+    },
+    "Footed_Bowl_Sand": {
+      "count": 1024,
+      "valid": 120,
+      "rate": 0.1171875
+    },
+    "Now_Designs_Bowl_Akita_Black": {
+      "count": 1024,
+      "valid": 101,
+      "rate": 0.0986328125
+    },
+    "Threshold_Bead_Cereal_Bowl_White": {
+      "count": 1024,
+      "valid": 103,
+      "rate": 0.1005859375
+    },
+    "Threshold_Porcelain_Serving_Bowl_Coupe_White": {
+      "count": 1024,
+      "valid": 111,
+      "rate": 0.1083984375
+    },
+    "6568": {
+      "count": 1024,
+      "valid": 160,
+      "rate": 0.15625
+    },
+    "6728": {
+      "count": 1024,
+      "valid": 74,
+      "rate": 0.072265625
+    },
+    "6797": {
+      "missing": true,
+      "reason": "object directory not found"
+    },
+    "6808": {
+      "count": 1024,
+      "valid": 164,
+      "rate": 0.16015625
+    },
+    "6813": {
+      "count": 1024,
+      "valid": 34,
+      "rate": 0.033203125
+    },
+    "6917": {
+      "count": 1024,
+      "valid": 78,
+      "rate": 0.076171875
+    },
+    "6934": {
+      "count": 1024,
+      "valid": 52,
+      "rate": 0.05078125
+    },
+    "6953": {
+      "count": 1024,
+      "valid": 102,
+      "rate": 0.099609375
+    },
+    "6963": {
+      "count": 1024,
+      "valid": 75,
+      "rate": 0.0732421875
+    },
+    "7007": {
+      "count": 1024,
+      "valid": 89,
+      "rate": 0.0869140625
+    },
+    "7015": {
+      "count": 1024,
+      "valid": 217,
+      "rate": 0.2119140625
+    },
+    "7054": {
+      "count": 1024,
+      "valid": 131,
+      "rate": 0.1279296875
+    },
+    "7064": {
+      "count": 1024,
+      "valid": 43,
+      "rate": 0.0419921875
+    },
+    "7104": {
+      "count": 1024,
+      "valid": 133,
+      "rate": 0.1298828125
+    },
+    "Central_Garden_Flower_Pot_Goo_425": {
+      "count": 1024,
+      "valid": 79,
+      "rate": 0.0771484375
+    },
+    "Cole_Hardware_Electric_Pot_Assortment_55": {
+      "count": 1024,
+      "valid": 80,
+      "rate": 0.078125
+    },
+    "Cole_Hardware_Electric_Pot_Cabana_55": {
+      "count": 1024,
+      "valid": 81,
+      "rate": 0.0791015625
+    },
+    "Cole_Hardware_Flower_Pot_1025": {
+      "count": 1024,
+      "valid": 110,
+      "rate": 0.107421875
+    },
+    "Cole_Hardware_Orchid_Pot_85": {
+      "count": 1024,
+      "valid": 69,
+      "rate": 0.0673828125
+    },
+    "Ecoforms_Garden_Pot_GP16ATurquois": {
+      "missing": true,
+      "reason": "object directory not found"
+    },
+    "Ecoforms_Plant_Container_12_Pot_Nova": {
+      "count": 1024,
+      "valid": 120,
+      "rate": 0.1171875
+    },
+    "Ecoforms_Plant_Container_GP16A_Coral": {
+      "count": 1024,
+      "valid": 141,
+      "rate": 0.1376953125
+    },
+    "Ecoforms_Plant_Container_GP16AMOCHA": {
+      "count": 1024,
+      "valid": 149,
+      "rate": 0.1455078125
+    },
+    "Ecoforms_Plant_Container_QP6CORAL": {
+      "count": 1024,
+      "valid": 214,
+      "rate": 0.208984375
+    },
+    "Ecoforms_Plant_Container_QP6HARVEST": {
+      "count": 1024,
+      "valid": 162,
+      "rate": 0.158203125
+    },
+    "Ecoforms_Plant_Container_Quadra_Sand_QP6": {
+      "count": 1024,
+      "valid": 246,
+      "rate": 0.240234375
+    },
+    "Ecoforms_Planter_Pot_QP6Ebony": {
+      "count": 1024,
+      "valid": 234,
+      "rate": 0.228515625
+    },
+    "Ecoforms_Pot_Nova_6_Turquoise": {
+      "count": 1024,
+      "valid": 138,
+      "rate": 0.134765625
+    },
+    "Full_Circle_Happy_Scraps_Out_Collector_Gray": {
+      "count": 1024,
+      "valid": 259,
+      "rate": 0.2529296875
+    },
+    "Grreatv_Choice_Dog_Bowl_Gray_Bones_Plastic_20_fl_oz_total": {
+      "count": 1024,
+      "valid": 219,
+      "rate": 0.2138671875
+    },
+    "Neat_Solutions_Character_Bib_2_pack": {
+      "count": 1024,
+      "valid": 194,
+      "rate": 0.189453125
+    },
+    "Spritz_Easter_Basket_Plastic_Teal": {
+      "count": 1024,
+      "valid": 138,
+      "rate": 0.134765625
+    },
+    "101336": {
+      "count": 1024,
+      "valid": 26,
+      "rate": 0.025390625
+    },
+    "101417": {
+      "count": 1024,
+      "valid": 145,
+      "rate": 0.1416015625
+    },
+    "101442": {
+      "count": 1024,
+      "valid": 82,
+      "rate": 0.080078125
+    },
+    "101458": {
+      "count": 1024,
+      "valid": 91,
+      "rate": 0.0888671875
+    },
+    "101490": {
+      "count": 1024,
+      "valid": 90,
+      "rate": 0.087890625
+    },
+    "101501": {
+      "count": 1024,
+      "valid": 75,
+      "rate": 0.0732421875
+    },
+    "101507": {
+      "count": 1024,
+      "valid": 36,
+      "rate": 0.03515625
+    },
+    "101517": {
+      "count": 1024,
+      "valid": 249,
+      "rate": 0.2431640625
+    },
+    "101531": {
+      "count": 1024,
+      "valid": 31,
+      "rate": 0.0302734375
+    },
+    "101541": {
+      "missing": true,
+      "reason": "object directory not found"
+    },
+    "101546": {
+      "count": 1024,
+      "valid": 132,
+      "rate": 0.12890625
+    },
+    "101557": {
+      "count": 1024,
+      "valid": 119,
+      "rate": 0.1162109375
+    },
+    "3386": {
+      "count": 1024,
+      "valid": 338,
+      "rate": 0.330078125
+    },
+    "3393": {
+      "count": 1024,
+      "valid": 267,
+      "rate": 0.2607421875
+    },
+    "4094": {
+      "count": 1024,
+      "valid": 286,
+      "rate": 0.279296875
+    },
+    "4529": {
+      "count": 1024,
+      "valid": 273,
+      "rate": 0.2666015625
+    },
+    "4533": {
+      "count": 1024,
+      "valid": 434,
+      "rate": 0.423828125
+    },
+    "4571": {
+      "count": 1024,
+      "valid": 141,
+      "rate": 0.1376953125
+    },
+    "4574": {
+      "count": 1024,
+      "valid": 395,
+      "rate": 0.3857421875
+    },
+    "4576": {
+      "count": 1024,
+      "valid": 272,
+      "rate": 0.265625
+    },
+    "4578": {
+      "count": 1024,
+      "valid": 297,
+      "rate": 0.2900390625
+    },
+    "4586": {
+      "count": 1024,
+      "valid": 391,
+      "rate": 0.3818359375
+    },
+    "4589": {
+      "count": 1024,
+      "valid": 327,
+      "rate": 0.3193359375
+    },
+    "4590": {
+      "count": 1024,
+      "valid": 443,
+      "rate": 0.4326171875
+    },
+    "4592": {
+      "count": 1024,
+      "valid": 243,
+      "rate": 0.2373046875
+    },
+    "4594": {
+      "count": 1024,
+      "valid": 382,
+      "rate": 0.373046875
+    },
+    "4627": {
+      "count": 1024,
+      "valid": 459,
+      "rate": 0.4482421875
+    },
+    "4628": {
+      "count": 1024,
+      "valid": 269,
+      "rate": 0.2626953125
+    },
+    "4633": {
+      "count": 1024,
+      "valid": 258,
+      "rate": 0.251953125
+    },
+    "4681": {
+      "count": 1024,
+      "valid": 213,
+      "rate": 0.2080078125
+    },
+    "4853": {
+      "count": 1024,
+      "valid": 176,
+      "rate": 0.171875
+    },
+    "5050": {
+      "count": 1024,
+      "valid": 338,
+      "rate": 0.330078125
+    },
+    "5306": {
+      "count": 1024,
+      "valid": 279,
+      "rate": 0.2724609375
+    },
+    "100031": {
+      "count": 1024,
+      "valid": 56,
+      "rate": 0.0546875
+    },
+    "101305": {
+      "count": 1024,
+      "valid": 9,
+      "rate": 0.0087890625
+    },
+    "101315": {
+      "count": 1024,
+      "valid": 8,
+      "rate": 0.0078125
+    },
+    "102714": {
+      "count": 1024,
+      "valid": 17,
+      "rate": 0.0166015625
+    },
+    "102715": {
+      "count": 1024,
+      "valid": 1,
+      "rate": 0.0009765625
+    },
+    "102720": {
+      "count": 1024,
+      "valid": 78,
+      "rate": 0.076171875
+    },
+    "102724": {
+      "count": 1024,
+      "valid": 52,
+      "rate": 0.05078125
+    },
+    "102726": {
+      "count": 1024,
+      "valid": 14,
+      "rate": 0.013671875
+    },
+    "102732": {
+      "count": 1024,
+      "valid": 66,
+      "rate": 0.064453125
+    },
+    "102736": {
+      "count": 1024,
+      "valid": 49,
+      "rate": 0.0478515625
+    },
+    "102761": {
+      "count": 1024,
+      "valid": 15,
+      "rate": 0.0146484375
+    },
+    "102763": {
+      "count": 1024,
+      "valid": 1,
+      "rate": 0.0009765625
+    },
+    "Chef_Style_Round_Cake_Pan_9_inch_pan": {
+      "count": 1024,
+      "valid": 281,
+      "rate": 0.2744140625
+    },
+    "Cole_Hardware_Plant_Saucer_Brown_125": {
+      "count": 1024,
+      "valid": 227,
+      "rate": 0.2216796875
+    },
+    "Cole_Hardware_Plant_Saucer_Glazed_9": {
+      "count": 1024,
+      "valid": 218,
+      "rate": 0.212890625
+    },
+    "Cole_Hardware_Saucer_Glazed_6": {
+      "count": 1024,
+      "valid": 183,
+      "rate": 0.1787109375
+    },
+    "Corningware_CW_by_Corningware_3qt_Oblong_Casserole_Dish_Blue": {
+      "count": 1024,
+      "valid": 260,
+      "rate": 0.25390625
+    },
+    "Ecoforms_Plant_Container_S24Turquoise": {
+      "count": 1024,
+      "valid": 247,
+      "rate": 0.2412109375
+    },
+    "Ecoforms_Plate_S20Avocado": {
+      "count": 1024,
+      "valid": 190,
+      "rate": 0.185546875
+    },
+    "Threshold_Bistro_Ceramic_Dinner_Plate_Ruby_Ring": {
+      "count": 1024,
+      "valid": 219,
+      "rate": 0.2138671875
+    },
+    "100015": {
+      "count": 1024,
+      "valid": 36,
+      "rate": 0.03515625
+    },
+    "100017": {
+      "missing": true,
+      "reason": "object directory not found"
+    },
+    "100021": {
+      "count": 1024,
+      "valid": 1,
+      "rate": 0.0009765625
+    },
+    "100023": {
+      "count": 1024,
+      "valid": 8,
+      "rate": 0.0078125
+    },
+    "100025": {
+      "count": 1024,
+      "valid": 11,
+      "rate": 0.0107421875
+    },
+    "100028": {
+      "count": 1024,
+      "valid": 4,
+      "rate": 0.00390625
+    },
+    "100032": {
+      "count": 1024,
+      "valid": 2,
+      "rate": 0.001953125
+    },
+    "100038": {
+      "count": 1024,
+      "valid": 5,
+      "rate": 0.0048828125
+    },
+    "100040": {
+      "count": 1024,
+      "valid": 8,
+      "rate": 0.0078125
+    },
+    "100623": {
+      "count": 1024,
+      "valid": 1,
+      "rate": 0.0009765625
+    },
+    "102080": {
+      "count": 1024,
+      "valid": 1,
+      "rate": 0.0009765625
+    },
+    "ASICS_GELDirt_Dog_4_SunFlameBlack": {
+      "count": 1024,
+      "valid": 194,
+      "rate": 0.189453125
+    },
+    "ASICS_GELLinksmaster_WhiteSilverCarolina_Blue": {
+      "count": 1024,
+      "valid": 183,
+      "rate": 0.1787109375
+    },
+    "ASICS_HyperRocketgirl_SP_5_WhiteMalibu_BlueBlack": {
+      "count": 1024,
+      "valid": 175,
+      "rate": 0.1708984375
+    },
+    "Chelsea_BlkHeelPMP_DwxLtZNxLZZ": {
+      "count": 1024,
+      "valid": 418,
+      "rate": 0.408203125
+    },
+    "Chelsea_lo_fl_rdheel_nQ0LPNF1oMw": {
+      "count": 1024,
+      "valid": 367,
+      "rate": 0.3583984375
+    },
+    "D_ROSE_773_II_hvInJwJ5HUD": {
+      "count": 1024,
+      "valid": 147,
+      "rate": 0.1435546875
+    },
+    "DRAGON_W": {
+      "count": 1024,
+      "valid": 225,
+      "rate": 0.2197265625
+    },
+    "GIRLS_DECKHAND": {
+      "count": 1024,
+      "valid": 332,
+      "rate": 0.32421875
+    },
+    "Hilary": {
+      "count": 1024,
+      "valid": 100,
+      "rate": 0.09765625
+    },
+    "Mens_Authentic_Original_Boat_Shoe_in_Navy_Leather_xgoEcZtRNmH": {
+      "count": 1024,
+      "valid": 247,
+      "rate": 0.2412109375
+    },
+    "Mens_Billfish_Slip_On_in_Coffee_nK6AJJAHOae": {
+      "count": 1024,
+      "valid": 100,
+      "rate": 0.09765625
+    },
+    "Mens_Gold_Cup_ASV_Capetown_Penny_Loafer_in_Black_GkQBKqABeQN": {
+      "count": 1024,
+      "valid": 240,
+      "rate": 0.234375
+    },
+    "Mens_Mako_Canoe_Moc_2Eye_Boat_Shoe_in_Coffee_K9e8FoV73uZ": {
+      "count": 1024,
+      "valid": 242,
+      "rate": 0.236328125
+    },
+    "Mens_Santa_Cruz_Thong_in_Chocolate_lvxYW7lek6B": {
+      "count": 1024,
+      "valid": 248,
+      "rate": 0.2421875
+    },
+    "NAPA_VALLEY_NAVAJO_SANDAL": {
+      "count": 1024,
+      "valid": 456,
+      "rate": 0.4453125
+    },
+    "Predator_LZ_TRX_FG": {
+      "count": 1024,
+      "valid": 241,
+      "rate": 0.2353515625
+    },
+    "Predito_LZ_TRX_FG_W": {
+      "count": 1024,
+      "valid": 145,
+      "rate": 0.1416015625
+    },
+    "Rayna_BootieWP": {
+      "count": 1024,
+      "valid": 100,
+      "rate": 0.09765625
+    },
+    "Sperry_TopSider_pSUFPWQXPp3": {
+      "count": 1024,
+      "valid": 134,
+      "rate": 0.130859375
+    },
+    "UGG_Classic_Tall_Womens_Boots_Chestnut_7": {
+      "count": 1024,
+      "valid": 190,
+      "rate": 0.185546875
+    },
+    "Womens_Teva_Capistrano_Bootie": {
+      "count": 1024,
+      "valid": 124,
+      "rate": 0.12109375
+    },
+    "Animal_Planet_Foam_2Headed_Dragon": {
+      "count": 1024,
+      "valid": 444,
+      "rate": 0.43359375
+    },
+    "binoculars": {
+      "count": 1024,
+      "valid": 90,
+      "rate": 0.087890625
+    },
+    "Breyer_Horse_Of_The_Year_2015": {
+      "count": 1024,
+      "valid": 194,
+      "rate": 0.189453125
+    },
+    "DANCING_ALLIGATOR_zoWBjc0jbTs": {
+      "count": 1024,
+      "valid": 459,
+      "rate": 0.4482421875
+    },
+    "Dino_3": {
+      "count": 1024,
+      "valid": 443,
+      "rate": 0.4326171875
+    },
+    "Lovable_Huggable_Cuddly_Boutique_Teddy_Bear_Beige": {
+      "count": 1024,
+      "valid": 198,
+      "rate": 0.193359375
+    },
+    "Marvel_Avengers_Titan_Hero_Series_Doctor_Doom": {
+      "count": 1024,
+      "valid": 36,
+      "rate": 0.03515625
+    },
+    "MINI_EXCAVATOR": {
+      "count": 1024,
+      "valid": 204,
+      "rate": 0.19921875
+    },
+    "My_Little_Pony_Princess_Celestia": {
+      "count": 1024,
+      "valid": 328,
+      "rate": 0.3203125
+    },
+    "Ortho_Forward_Facing_3Q6J2oKJD92": {
+      "count": 1024,
+      "valid": 226,
+      "rate": 0.220703125
+    },
+    "Ortho_Forward_Facing_QCaor9ImJ2G": {
+      "count": 1024,
+      "valid": 127,
+      "rate": 0.1240234375
+    },
+    "Racoon": {
+      "count": 1024,
+      "valid": 241,
+      "rate": 0.2353515625
+    },
+    "Sootheze_Toasty_Orca": {
+      "count": 1024,
+      "valid": 288,
+      "rate": 0.28125
+    },
+    "SpiderMan_Titan_Hero_12Inch_Action_Figure_oo1qph4wwiW": {
+      "count": 1024,
+      "valid": 406,
+      "rate": 0.396484375
+    },
+    "Squirrel": {
+      "count": 1024,
+      "valid": 112,
+      "rate": 0.109375
+    },
+    "Transformers_Age_of_Extinction_Mega_1Step_Bumblebee_Figure": {
+      "count": 1024,
+      "valid": 324,
+      "rate": 0.31640625
+    },
+    "Big_Dot_Aqua_Pencil_Case": {
+      "count": 1024,
+      "valid": 66,
+      "rate": 0.064453125
+    },
+    "Big_Dot_Pink_Pencil_Case": {
+      "count": 1024,
+      "valid": 38,
+      "rate": 0.037109375
+    },
+    "core-bottle-1a7ba1f4c892e2da30711cdbdbc73924": {
+      "count": 1024,
+      "valid": 1,
+      "rate": 0.0009765625
+    },
+    "core-bottle-1f1e747bfce16fe0589ac2c115a083f1": {
+      "count": 1024,
+      "valid": 244,
+      "rate": 0.23828125
+    },
+    "core-bottle-2efb9eef0ed832a89769b3a50399d097": {
+      "count": 1024,
+      "valid": 185,
+      "rate": 0.1806640625
+    },
+    "core-bottle-3a9516eb02206108e0c8359faeb78bbe": {
+      "count": 1024,
+      "valid": 58,
+      "rate": 0.056640625
+    },
+    "ddg-gd_spray_bottle_poisson_003": {
+      "count": 1024,
+      "valid": 148,
+      "rate": 0.14453125
+    },
+    "flashlight": {
+      "count": 1024,
+      "valid": 347,
+      "rate": 0.3388671875
+    },
+    "Grreat_Choice_Dog_Double_Dish_Plastic_Blue": {
+      "count": 1024,
+      "valid": 267,
+      "rate": 0.2607421875
+    },
+    "Horses_in_Pink_Pencil_Case": {
+      "count": 1024,
+      "valid": 29,
+      "rate": 0.0283203125
+    },
+    "mug": {
+      "count": 1024,
+      "valid": 63,
+      "rate": 0.0615234375
+    },
+    "pitcher_base": {
+      "count": 1024,
+      "valid": 3,
+      "rate": 0.0029296875
+    },
+    "power_drill": {
+      "count": 1024,
+      "valid": 271,
+      "rate": 0.2646484375
+    },
+    "ps_controller": {
+      "count": 1024,
+      "valid": 97,
+      "rate": 0.0947265625
+    },
+    "Threshold_Porcelain_Pitcher_White": {
+      "count": 1024,
+      "valid": 30,
+      "rate": 0.029296875
+    },
+    "Threshold_Porcelain_Teapot_White": {
+      "count": 1024,
+      "valid": 25,
+      "rate": 0.0244140625
+    },
+    "Twinlab_100_Whey_Protein_Fuel_Chocolate": {
+      "count": 1024,
+      "valid": 0,
+      "rate": 0.0
+    },
+    "wine_glass": {
+      "count": 1024,
+      "valid": 304,
+      "rate": 0.296875
+    },
+    "Wishbone_Pencil_Case": {
+      "count": 1024,
+      "valid": 51,
+      "rate": 0.0498046875
+    }
+  },
+  "by_category": {
+    "bottles": {
+      "count": 17408,
+      "valid": 1443,
+      "rate": 0.08289292279411764,
+      "num_objects": 17,
+      "num_missing": 0,
+      "object_rates": {
+        "core-bottle-1ae823260851f7d9ea600d1a6d9f6e07": 0.29296875,
+        "core-bottle-1cf98e5b6fff5471c8724d5673a063a6": 0.1044921875,
+        "core-bottle-1ffd7113492d375593202bf99dddc268": 0.173828125,
+        "core-bottle-2a9817a43c5b3983bb13793251b29587": 0.1181640625,
+        "core-bottle-2cc108080535bc51e7a14f6d159dcd47": 0.04296875,
+        "core-bottle-2d1aa4e124c0dd5bf937e5c6aa3f9597": 0.26953125,
+        "core-bottle-2d912be96504cb8cd5473a45f1da0225": 0.24609375,
+        "core-bottle-2db802ef3de3d00618a36258eabc2b9c": 0.0244140625,
+        "core-bottle-3ae3a9b74f96fef28fe15648f042f0d9": 0.0,
+        "core-bottle-3b0e35ff08f09a85f0d11ae402ef940e": 0.0029296875,
+        "ddg-gd_jar_poisson_014": 0.00390625,
+        "mustard_bottle": 0.05078125,
+        "Phillips_Milk_of_Magnesia_Saline_Laxative_Liquid_Original": 0.01171875,
+        "Twinlab_100_Whey_Protein_Fuel_Cookies_and_Cream": 0.0009765625,
+        "water_bottle": 0.0048828125,
+        "Weston_No_22_Cajun_Jerky_Tonic_12_fl_oz_nLj64ZnGwDh": 0.0283203125,
+        "Weston_No_33_Signature_Sausage_Tonic_12_fl_oz": 0.033203125
+      }
+    },
+    "bowls": {
+      "count": 10240,
+      "valid": 1008,
+      "rate": 0.0984375,
+      "num_objects": 10,
+      "num_missing": 0,
+      "object_rates": {
+        "Calphalon_Kitchen_Essentials_12_Cast_Iron_Fry_Pan_Black": 0.1318359375,
+        "Cole_Hardware_Deep_Bowl_Good_Earth_1075": 0.0927734375,
+        "Dixie_10_ounce_Bowls_35_ct": 0.0078125,
+        "Ecoforms_Plant_Bowl_Turquoise_7": 0.091796875,
+        "Ecoforms_Plant_Container_FB6_Tur": 0.1201171875,
+        "Ecoforms_Plant_Container_SB9Turquoise": 0.115234375,
+        "Footed_Bowl_Sand": 0.1171875,
+        "Now_Designs_Bowl_Akita_Black": 0.0986328125,
+        "Threshold_Bead_Cereal_Bowl_White": 0.1005859375,
+        "Threshold_Porcelain_Serving_Bowl_Coupe_White": 0.1083984375
+      }
+    },
+    "clocks": {
+      "count": 13312,
+      "valid": 1352,
+      "rate": 0.1015625,
+      "num_objects": 14,
+      "num_missing": 1,
+      "object_rates": {
+        "6568": 0.15625,
+        "6728": 0.072265625,
+        "6797": null,
+        "6808": 0.16015625,
+        "6813": 0.033203125,
+        "6917": 0.076171875,
+        "6934": 0.05078125,
+        "6953": 0.099609375,
+        "6963": 0.0732421875,
+        "7007": 0.0869140625,
+        "7015": 0.2119140625,
+        "7054": 0.1279296875,
+        "7064": 0.0419921875,
+        "7104": 0.1298828125
+      }
+    },
+    "containers": {
+      "count": 17408,
+      "valid": 2633,
+      "rate": 0.15125229779411764,
+      "num_objects": 18,
+      "num_missing": 1,
+      "object_rates": {
+        "Central_Garden_Flower_Pot_Goo_425": 0.0771484375,
+        "Cole_Hardware_Electric_Pot_Assortment_55": 0.078125,
+        "Cole_Hardware_Electric_Pot_Cabana_55": 0.0791015625,
+        "Cole_Hardware_Flower_Pot_1025": 0.107421875,
+        "Cole_Hardware_Orchid_Pot_85": 0.0673828125,
+        "Ecoforms_Garden_Pot_GP16ATurquois": null,
+        "Ecoforms_Plant_Container_12_Pot_Nova": 0.1171875,
+        "Ecoforms_Plant_Container_GP16A_Coral": 0.1376953125,
+        "Ecoforms_Plant_Container_GP16AMOCHA": 0.1455078125,
+        "Ecoforms_Plant_Container_QP6CORAL": 0.208984375,
+        "Ecoforms_Plant_Container_QP6HARVEST": 0.158203125,
+        "Ecoforms_Plant_Container_Quadra_Sand_QP6": 0.240234375,
+        "Ecoforms_Planter_Pot_QP6Ebony": 0.228515625,
+        "Ecoforms_Pot_Nova_6_Turquoise": 0.134765625,
+        "Full_Circle_Happy_Scraps_Out_Collector_Gray": 0.2529296875,
+        "Grreatv_Choice_Dog_Bowl_Gray_Bones_Plastic_20_fl_oz_total": 0.2138671875,
+        "Neat_Solutions_Character_Bib_2_pack": 0.189453125,
+        "Spritz_Easter_Basket_Plastic_Teal": 0.134765625
+      }
+    },
+    "dispensor": {
+      "count": 11264,
+      "valid": 1076,
+      "rate": 0.09552556818181818,
+      "num_objects": 12,
+      "num_missing": 1,
+      "object_rates": {
+        "101336": 0.025390625,
+        "101417": 0.1416015625,
+        "101442": 0.080078125,
+        "101458": 0.0888671875,
+        "101490": 0.087890625,
+        "101501": 0.0732421875,
+        "101507": 0.03515625,
+        "101517": 0.2431640625,
+        "101531": 0.0302734375,
+        "101541": null,
+        "101546": 0.12890625,
+        "101557": 0.1162109375
+      }
+    },
+    "displays": {
+      "count": 21504,
+      "valid": 6481,
+      "rate": 0.30138578869047616,
+      "num_objects": 21,
+      "num_missing": 0,
+      "object_rates": {
+        "3386": 0.330078125,
+        "3393": 0.2607421875,
+        "4094": 0.279296875,
+        "4529": 0.2666015625,
+        "4533": 0.423828125,
+        "4571": 0.1376953125,
+        "4574": 0.3857421875,
+        "4576": 0.265625,
+        "4578": 0.2900390625,
+        "4586": 0.3818359375,
+        "4589": 0.3193359375,
+        "4590": 0.4326171875,
+        "4592": 0.2373046875,
+        "4594": 0.373046875,
+        "4627": 0.4482421875,
+        "4628": 0.2626953125,
+        "4633": 0.251953125,
+        "4681": 0.2080078125,
+        "4853": 0.171875,
+        "5050": 0.330078125,
+        "5306": 0.2724609375
+      }
+    },
+    "kettle": {
+      "count": 12288,
+      "valid": 366,
+      "rate": 0.02978515625,
+      "num_objects": 12,
+      "num_missing": 0,
+      "object_rates": {
+        "100031": 0.0546875,
+        "101305": 0.0087890625,
+        "101315": 0.0078125,
+        "102714": 0.0166015625,
+        "102715": 0.0009765625,
+        "102720": 0.076171875,
+        "102724": 0.05078125,
+        "102726": 0.013671875,
+        "102732": 0.064453125,
+        "102736": 0.0478515625,
+        "102761": 0.0146484375,
+        "102763": 0.0009765625
+      }
+    },
+    "plates": {
+      "count": 8192,
+      "valid": 1825,
+      "rate": 0.2227783203125,
+      "num_objects": 8,
+      "num_missing": 0,
+      "object_rates": {
+        "Chef_Style_Round_Cake_Pan_9_inch_pan": 0.2744140625,
+        "Cole_Hardware_Plant_Saucer_Brown_125": 0.2216796875,
+        "Cole_Hardware_Plant_Saucer_Glazed_9": 0.212890625,
+        "Cole_Hardware_Saucer_Glazed_6": 0.1787109375,
+        "Corningware_CW_by_Corningware_3qt_Oblong_Casserole_Dish_Blue": 0.25390625,
+        "Ecoforms_Plant_Container_S24Turquoise": 0.2412109375,
+        "Ecoforms_Plate_S20Avocado": 0.185546875,
+        "Threshold_Bistro_Ceramic_Dinner_Plate_Ruby_Ring": 0.2138671875
+      }
+    },
+    "pots": {
+      "count": 10240,
+      "valid": 77,
+      "rate": 0.00751953125,
+      "num_objects": 11,
+      "num_missing": 1,
+      "object_rates": {
+        "100015": 0.03515625,
+        "100017": null,
+        "100021": 0.0009765625,
+        "100023": 0.0078125,
+        "100025": 0.0107421875,
+        "100028": 0.00390625,
+        "100032": 0.001953125,
+        "100038": 0.0048828125,
+        "100040": 0.0078125,
+        "100623": 0.0009765625,
+        "102080": 0.0009765625
+      }
+    },
+    "shoes": {
+      "count": 21504,
+      "valid": 4608,
+      "rate": 0.21428571428571427,
+      "num_objects": 21,
+      "num_missing": 0,
+      "object_rates": {
+        "ASICS_GELDirt_Dog_4_SunFlameBlack": 0.189453125,
+        "ASICS_GELLinksmaster_WhiteSilverCarolina_Blue": 0.1787109375,
+        "ASICS_HyperRocketgirl_SP_5_WhiteMalibu_BlueBlack": 0.1708984375,
+        "Chelsea_BlkHeelPMP_DwxLtZNxLZZ": 0.408203125,
+        "Chelsea_lo_fl_rdheel_nQ0LPNF1oMw": 0.3583984375,
+        "D_ROSE_773_II_hvInJwJ5HUD": 0.1435546875,
+        "DRAGON_W": 0.2197265625,
+        "GIRLS_DECKHAND": 0.32421875,
+        "Hilary": 0.09765625,
+        "Mens_Authentic_Original_Boat_Shoe_in_Navy_Leather_xgoEcZtRNmH": 0.2412109375,
+        "Mens_Billfish_Slip_On_in_Coffee_nK6AJJAHOae": 0.09765625,
+        "Mens_Gold_Cup_ASV_Capetown_Penny_Loafer_in_Black_GkQBKqABeQN": 0.234375,
+        "Mens_Mako_Canoe_Moc_2Eye_Boat_Shoe_in_Coffee_K9e8FoV73uZ": 0.236328125,
+        "Mens_Santa_Cruz_Thong_in_Chocolate_lvxYW7lek6B": 0.2421875,
+        "NAPA_VALLEY_NAVAJO_SANDAL": 0.4453125,
+        "Predator_LZ_TRX_FG": 0.2353515625,
+        "Predito_LZ_TRX_FG_W": 0.1416015625,
+        "Rayna_BootieWP": 0.09765625,
+        "Sperry_TopSider_pSUFPWQXPp3": 0.130859375,
+        "UGG_Classic_Tall_Womens_Boots_Chestnut_7": 0.185546875,
+        "Womens_Teva_Capistrano_Bootie": 0.12109375
+      }
+    },
+    "toys": {
+      "count": 16384,
+      "valid": 4120,
+      "rate": 0.25146484375,
+      "num_objects": 16,
+      "num_missing": 0,
+      "object_rates": {
+        "Animal_Planet_Foam_2Headed_Dragon": 0.43359375,
+        "binoculars": 0.087890625,
+        "Breyer_Horse_Of_The_Year_2015": 0.189453125,
+        "DANCING_ALLIGATOR_zoWBjc0jbTs": 0.4482421875,
+        "Dino_3": 0.4326171875,
+        "Lovable_Huggable_Cuddly_Boutique_Teddy_Bear_Beige": 0.193359375,
+        "Marvel_Avengers_Titan_Hero_Series_Doctor_Doom": 0.03515625,
+        "MINI_EXCAVATOR": 0.19921875,
+        "My_Little_Pony_Princess_Celestia": 0.3203125,
+        "Ortho_Forward_Facing_3Q6J2oKJD92": 0.220703125,
+        "Ortho_Forward_Facing_QCaor9ImJ2G": 0.1240234375,
+        "Racoon": 0.2353515625,
+        "Sootheze_Toasty_Orca": 0.28125,
+        "SpiderMan_Titan_Hero_12Inch_Action_Figure_oo1qph4wwiW": 0.396484375,
+        "Squirrel": 0.109375,
+        "Transformers_Age_of_Extinction_Mega_1Step_Bumblebee_Figure": 0.31640625
+      }
+    },
+    "others": {
+      "count": 19456,
+      "valid": 2227,
+      "rate": 0.11446340460526316,
+      "num_objects": 19,
+      "num_missing": 0,
+      "object_rates": {
+        "Big_Dot_Aqua_Pencil_Case": 0.064453125,
+        "Big_Dot_Pink_Pencil_Case": 0.037109375,
+        "core-bottle-1a7ba1f4c892e2da30711cdbdbc73924": 0.0009765625,
+        "core-bottle-1f1e747bfce16fe0589ac2c115a083f1": 0.23828125,
+        "core-bottle-2efb9eef0ed832a89769b3a50399d097": 0.1806640625,
+        "core-bottle-3a9516eb02206108e0c8359faeb78bbe": 0.056640625,
+        "ddg-gd_spray_bottle_poisson_003": 0.14453125,
+        "flashlight": 0.3388671875,
+        "Grreat_Choice_Dog_Double_Dish_Plastic_Blue": 0.2607421875,
+        "Horses_in_Pink_Pencil_Case": 0.0283203125,
+        "mug": 0.0615234375,
+        "pitcher_base": 0.0029296875,
+        "power_drill": 0.2646484375,
+        "ps_controller": 0.0947265625,
+        "Threshold_Porcelain_Pitcher_White": 0.029296875,
+        "Threshold_Porcelain_Teapot_White": 0.0244140625,
+        "Twinlab_100_Whey_Protein_Fuel_Chocolate": 0.0,
+        "wine_glass": 0.296875,
+        "Wishbone_Pencil_Case": 0.0498046875
+      }
+    }
+  },
+  "missing_objects": [
+    {
+      "object": "6797",
+      "category": "clocks",
+      "reason": "object directory not found"
+    },
+    {
+      "object": "Ecoforms_Garden_Pot_GP16ATurquois",
+      "category": "containers",
+      "reason": "object directory not found"
+    },
+    {
+      "object": "101541",
+      "category": "dispensor",
+      "reason": "object directory not found"
+    },
+    {
+      "object": "100017",
+      "category": "pots",
+      "reason": "object directory not found"
+    }
+  ]
+}

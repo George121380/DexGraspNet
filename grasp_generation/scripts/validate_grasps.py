@@ -16,6 +16,35 @@ import numpy as np
 import transforms3d
 from utils.hand_model import HandModel
 from utils.object_model import ObjectModel
+import json as _json
+from datetime import datetime as _dt
+
+# Optional progress bar support
+try:
+    from tqdm import tqdm as _tqdm
+except Exception:
+    _tqdm = None
+
+class _SimpleProgress:
+    """Lightweight progress indicator when tqdm is unavailable."""
+    def __init__(self, total, desc=''):
+        self.total = max(int(total or 0), 0)
+        self.desc = desc
+        self.count = 0
+
+    def update(self, n=1):
+        self.count += int(n)
+        if self.total > 0:
+            percent = int(self.count * 100 / self.total)
+            sys.stdout.write(f"\r{self.desc} {self.count}/{self.total} ({percent}%)")
+        else:
+            sys.stdout.write(f"\r{self.desc} {self.count}")
+        sys.stdout.flush()
+        if self.total > 0 and self.count >= self.total:
+            sys.stdout.write("\n")
+
+def _create_progress(total, desc):
+    return _tqdm(total=total, desc=desc) if _tqdm is not None else _SimpleProgress(total, desc)
 
 try:
     from utils.isaac_bimanual_validator import BimanualIsaacValidator
@@ -73,23 +102,65 @@ def _save_bimanual_results(save_path, entries):
     _np.save(save_path, entries, allow_pickle=True)
 
 
+_ASSET_RESOLVE_CACHE = {}
+
+
 def _resolve_object_asset_root(mesh_path, primary_code, secondary_code=None):
-    """Locate a coacd asset folder for the object, with fallbacks."""
+    """Locate a coacd asset folder for the object, with support for category subfolders.
+
+    Tries the following in order (with simple memoization):
+    1) <mesh_path>/<code>/coacd/coacd.urdf
+    2) <mesh_path>/*/<code>/coacd/coacd.urdf (one category level)
+    3) Recursive walk under mesh_path for a folder named 'coacd' containing 'coacd.urdf'
+    """
+    # simple cache to avoid repeated directory scans across chunks
+    cache_key = (os.path.abspath(mesh_path), primary_code, secondary_code)
+    cached = _ASSET_RESOLVE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     candidates = [primary_code]
     if secondary_code and secondary_code not in candidates:
         candidates.append(secondary_code)
+
+    # direct and one-level category checks
+    try:
+        entries = os.listdir(mesh_path)
+    except Exception:
+        entries = []
+
     for code in candidates:
+        # direct: <mesh_path>/<code>/coacd/coacd.urdf
         candidate_root = os.path.join(mesh_path, code, 'coacd')
         candidate_file = os.path.join(candidate_root, 'coacd.urdf')
         if os.path.exists(candidate_file):
+            _ASSET_RESOLVE_CACHE[cache_key] = (candidate_root, 'coacd.urdf')
             return candidate_root, 'coacd.urdf'
-    # Fallback: scan mesh_path for any directory containing coacd/coacd.urdf
-    for entry in os.listdir(mesh_path):
-        candidate_root = os.path.join(mesh_path, entry, 'coacd')
-        candidate_file = os.path.join(candidate_root, 'coacd.urdf')
-        if os.path.exists(candidate_file):
-            print(f'Warning: object assets for {primary_code} not found. Using {entry} as fallback.')
-            return candidate_root, 'coacd.urdf'
+        # one-level category: <mesh_path>/*/<code>/coacd/coacd.urdf
+        for entry in entries:
+            candidate_root = os.path.join(mesh_path, entry, code, 'coacd')
+            candidate_file = os.path.join(candidate_root, 'coacd.urdf')
+            if os.path.exists(candidate_file):
+                _ASSET_RESOLVE_CACHE[cache_key] = (candidate_root, 'coacd.urdf')
+                return candidate_root, 'coacd.urdf'
+
+    # Fallback: recursive search for any 'coacd/coacd.urdf' that sits under a folder named with the code
+    for dirpath, dirnames, filenames in os.walk(mesh_path):
+        base = os.path.basename(dirpath)
+        if base == 'coacd' and 'coacd.urdf' in filenames:
+            # ensure its parent dir name matches a candidate code if possible
+            parent_name = os.path.basename(os.path.dirname(dirpath))
+            if parent_name in candidates:
+                _ASSET_RESOLVE_CACHE[cache_key] = (dirpath, 'coacd.urdf')
+                return dirpath, 'coacd.urdf'
+
+    # As last resort, accept any coacd folder (kept for backward compatibility)
+    for dirpath, dirnames, filenames in os.walk(mesh_path):
+        if os.path.basename(dirpath) == 'coacd' and 'coacd.urdf' in filenames:
+            _ASSET_RESOLVE_CACHE[cache_key] = (dirpath, 'coacd.urdf')
+            return dirpath, 'coacd.urdf'
+
+    _ASSET_RESOLVE_CACHE[cache_key] = (None, None)
     return None, None
 
 
@@ -111,8 +182,16 @@ def run_bimanual_validation(args, translation_names, rot_names, joint_names):
         bundle_data = _np.load(bundle_path, allow_pickle=True)
         num_pairs = len(bundle_data)
         pair_indices = [(i, i) for i in range(num_pairs)]
+        # optional limit before slicing
         if args.pair_limit is not None:
             pair_indices = pair_indices[:args.pair_limit]
+        # segment slicing
+        start_index = int(getattr(args, 'pair_start', 0) or 0)
+        count = getattr(args, 'pair_count', None)
+        if count is not None:
+            pair_indices = pair_indices[start_index:start_index + int(count)]
+        else:
+            pair_indices = pair_indices[start_index:]
         left_data = [entry['qpos_left'] for entry in bundle_data]
         right_data = [entry['qpos_right'] for entry in bundle_data]
         scale_bundle = [entry.get('scale', 0.1) for entry in bundle_data]
@@ -133,6 +212,13 @@ def run_bimanual_validation(args, translation_names, rot_names, joint_names):
 
         rng = _np.random.default_rng(0)
         pair_indices = _build_pair_indices(num_left, num_right, args.pairing, args.pair_limit, rng)
+        # segment slicing
+        start_index = int(getattr(args, 'pair_start', 0) or 0)
+        count = getattr(args, 'pair_count', None)
+        if count is not None:
+            pair_indices = pair_indices[start_index:start_index + int(count)]
+        else:
+            pair_indices = pair_indices[start_index:]
         if not pair_indices:
             print('No bimanual pairs available for evaluation.')
             os._exit(0)
@@ -173,6 +259,7 @@ def run_bimanual_validation(args, translation_names, rot_names, joint_names):
     global_index = 0
     results_flat = []
 
+    progress = _create_progress(total_pairs, 'Bimanual validation')
     while offset < total_pairs:
         batch_pairs = pair_indices[offset : offset + args.val_batch_bimanual]
         validator.set_assets(obj_root, obj_file)
@@ -218,17 +305,43 @@ def run_bimanual_validation(args, translation_names, rot_names, joint_names):
             end = start + views_per_pair
             simulated_flags[global_index + local_pair_index] = all(batch_results[start:end])
 
+        # Per-round metrics (cumulative up to current batch)
+        processed_total = global_index + len(batch_pairs)
+        est_so_far = int(estimated_flags[:processed_total].sum())
+        sim_so_far = int(simulated_flags[:processed_total].sum())
+        valid_so_far = int((estimated_flags[:processed_total] & simulated_flags[:processed_total]).sum())
+        try:
+            if _tqdm is not None:
+                progress.set_postfix({
+                    'est': f"{est_so_far}/{processed_total}",
+                    'sim': f"{sim_so_far}/{processed_total}",
+                    'valid': f"{valid_so_far}/{processed_total}"
+                })
+            else:
+                print(f"Round {processed_total}: estimated {est_so_far}/{processed_total}, simulated {sim_so_far}/{processed_total}, valid {valid_so_far}/{processed_total}")
+        except Exception:
+            pass
+
         offset += len(batch_pairs)
         global_index += len(batch_pairs)
+        try:
+            progress.update(len(batch_pairs))
+        except Exception:
+            pass
         if offset < total_pairs:
             validator.reset_simulator()
 
     validator.destroy()
 
     valid_flags = simulated_flags & estimated_flags
+    est_cnt = int(estimated_flags.sum())
+    sim_cnt = int(simulated_flags.sum())
+    val_cnt = int(valid_flags.sum())
     print(
-        f"estimated: {estimated_flags.sum()}/{total_pairs}, simulated: {simulated_flags.sum()}/{total_pairs}, valid: {valid_flags.sum()}/{total_pairs}"
+        f"estimated: {est_cnt}/{total_pairs}, simulated: {sim_cnt}/{total_pairs}, valid: {val_cnt}/{total_pairs}"
     )
+    # Short summary line for logging/grep convenience
+    print(f"est={est_cnt}/{total_pairs}, sim={sim_cnt}/{total_pairs}, valid={val_cnt}/{total_pairs}")
 
     save_entries = []
     for pair_position, (left_idx, right_idx) in enumerate(pair_indices):
@@ -261,15 +374,41 @@ def run_bimanual_validation(args, translation_names, rot_names, joint_names):
                 }
             )
 
-    suffix = '_bimanual.npy'
-    if object_code_left != object_code_right:
-        save_name = f"{object_code_left}_{object_code_right}{suffix}"
-    else:
-        save_name = f"{object_code_left}{suffix}"
-    save_path = os.path.join(args.result_path, save_name)
+    # Segment-aware output dir and filename
+    base_name = f"{object_code_left}_{object_code_right}" if object_code_left != object_code_right else object_code_left
+    segment_dir = os.path.join(args.result_path, 'segments', 'bimanual', base_name)
+    os.makedirs(segment_dir, exist_ok=True)
+    seg_start = int(getattr(args, 'pair_start', 0) or 0)
+    seg_count = int(total_pairs)
+    seg_end = seg_start + seg_count
+    save_name = f"{base_name}_bimanual_chunk_{seg_start}_{seg_end}.npy"
+    save_path = os.path.join(segment_dir, save_name)
 
     _save_bimanual_results(save_path, save_entries)
     print(f'Saved {len(save_entries)} valid bimanual pairs to {save_path}')
+
+    # Update stats.json in the same directory
+    stats_path = os.path.join(segment_dir, 'stats.json')
+    stats = {}
+    if os.path.exists(stats_path):
+        try:
+            with open(stats_path, 'r') as f:
+                stats = _json.load(f) or {}
+        except Exception:
+            stats = {}
+    segment_id = save_name
+    stats[segment_id] = {
+        'mode': 'bimanual',
+        'object': base_name,
+        'start': seg_start,
+        'count': seg_count,
+        'estimated': est_cnt,
+        'simulated': sim_cnt,
+        'valid': val_cnt,
+        'timestamp': _dt.now().isoformat(timespec='seconds')
+    }
+    with open(stats_path, 'w') as f:
+        _json.dump(stats, f, indent=2)
     os._exit(0)
 
 
@@ -294,6 +433,12 @@ if __name__ == '__main__':
     parser.add_argument('--gui_width', type=int, default=1280, help='Viewer window width when --gui is set')
     parser.add_argument('--gui_height', type=int, default=960, help='Viewer window height when --gui is set')
     parser.add_argument('--bimanual', action='store_true', help='Enable dual-hand validation flow')
+    # segment options for single-hand mode
+    parser.add_argument('--start', type=int, default=0, help='Start index for single-hand validation segment')
+    parser.add_argument('--count', type=int, help='Number of items to validate in single-hand segment')
+    # segment options for bimanual mode
+    parser.add_argument('--pair_start', type=int, default=0, help='Start index for bimanual pair segment')
+    parser.add_argument('--pair_count', type=int, help='Number of pairs to validate in bimanual segment')
     parser.add_argument('--object_code_left', type=str, help='Override object code for left hand (default: object_code)')
     parser.add_argument('--object_code_right', type=str, help='Override object code for right hand (default: object_code)')
     parser.add_argument('--grasp_path_left', type=str, help='Directory for left-hand grasp npy files (default: grasp_path)')
@@ -304,7 +449,7 @@ if __name__ == '__main__':
     parser.add_argument('--mirror_left_hand', action='store_true', help='Mirror right-hand joint ordering to synthesize left-hand joint angles')
     parser.add_argument('--pairing', choices=['index', 'random', 'cartesian'], default='index', help='Pairing strategy for left/right grasp sets')
     parser.add_argument('--pair_limit', type=int, help='Max number of paired grasps to evaluate for bimanual mode')
-    parser.add_argument('--val_batch_bimanual', type=int, default=16, help='Batch size (number of pairs) for bimanual evaluation')
+    parser.add_argument('--val_batch_bimanual', type=int, default=32, help='Batch size (number of pairs) for bimanual evaluation')
     parser.add_argument('--bimanual_views', type=int, default=4, help='Number of test orientations per pair in bimanual mode')
 
     args = parser.parse_args()
@@ -330,8 +475,15 @@ if __name__ == '__main__':
     if not args.no_force:
         device = torch.device(
             f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
-        data_dict = np.load(os.path.join(
+        # load grasp npy with segment slicing
+        full_data = np.load(os.path.join(
             args.grasp_path, args.object_code + '.npy'), allow_pickle=True)
+        start_index = int(getattr(args, 'start', 0) or 0)
+        count = getattr(args, 'count', None)
+        if count is not None:
+            data_dict = full_data[start_index:start_index + int(count)]
+        else:
+            data_dict = full_data[start_index:]
         batch_size = data_dict.shape[0]
         hand_state = []
         scale_tensor = []
@@ -406,8 +558,15 @@ if __name__ == '__main__':
     if (args.index is not None):
         sim = IsaacValidator(gpu=args.gpu, mode="gui", viewer_width=args.gui_width, viewer_height=args.gui_height)
 
-    data_dict = np.load(os.path.join(
+    # reload grasp npy for simulation segment
+    full_data = np.load(os.path.join(
         args.grasp_path, args.object_code + '.npy'), allow_pickle=True)
+    start_index = int(getattr(args, 'start', 0) or 0)
+    count = getattr(args, 'count', None)
+    if count is not None:
+        data_dict = full_data[start_index:start_index + int(count)]
+    else:
+        data_dict = full_data[start_index:]
     batch_size = data_dict.shape[0]
     scale_array = []
     hand_poses = []
@@ -430,8 +589,11 @@ if __name__ == '__main__':
         hand_poses = hand_state[:, 9:]
 
     if (args.index is not None):
-        sim.set_asset("open_ai_assets", "hand/shadow_hand.xml",
-                       os.path.join(args.mesh_path, args.object_code, "coacd"), "coacd.urdf")
+        obj_root, obj_file = _resolve_object_asset_root(args.mesh_path, args.object_code)
+        if obj_root is None:
+            print('Failed to locate coacd assets for the object.')
+            os._exit(0)
+        sim.set_asset("open_ai_assets", "hand/shadow_hand.xml", obj_root, obj_file)
         index = args.index
         sim.add_env_single(rotations[index], translations[index], hand_poses[index],
                            scale_array[index], 0)
@@ -441,15 +603,50 @@ if __name__ == '__main__':
         simulated = np.zeros(batch_size, dtype=np.bool8)
         offset = 0
         result = []
+        progress = _create_progress(batch_size, 'Validation')
         for batch in range(batch_size // args.val_batch):
             offset_ = min(offset + args.val_batch, batch_size)
-            sim.set_asset("open_ai_assets", "hand/shadow_hand.xml",
-                           os.path.join(args.mesh_path, args.object_code, "coacd"), "coacd.urdf")
+            obj_root, obj_file = _resolve_object_asset_root(args.mesh_path, args.object_code)
+            if obj_root is None:
+                print('Failed to locate coacd assets for the object.')
+                os._exit(0)
+            sim.set_asset("open_ai_assets", "hand/shadow_hand.xml", obj_root, obj_file)
             for index in range(offset, offset_):
                 sim.add_env(rotations[index], translations[index], hand_poses[index],
                             scale_array[index])
             result = [*result, *sim.run_sim()]
             sim.reset_simulator()
+            processed = offset_ - offset
+            try:
+                progress.update(processed)
+            except Exception:
+                pass
+
+            # Per-round metrics (cumulative up to current batch)
+            try:
+                views_per_item = 6
+                num_processed = len(result) // views_per_item
+                if num_processed > 0:
+                    simulated_partial = np.zeros(num_processed, dtype=np.bool8)
+                    for i in range(num_processed):
+                        start = i * views_per_item
+                        end = start + views_per_item
+                        simulated_partial[i] = np.array(sum(result[start:end]) == views_per_item)
+                    estimated_partial = E_pen_array[:num_processed] < args.penetration_threshold
+                    valid_partial = simulated_partial & estimated_partial
+                    est_so_far = int(estimated_partial.sum())
+                    sim_so_far = int(simulated_partial.sum())
+                    valid_so_far = int(valid_partial.sum())
+                    if _tqdm is not None:
+                        progress.set_postfix({
+                            'est': f"{est_so_far}/{num_processed}",
+                            'sim': f"{sim_so_far}/{num_processed}",
+                            'valid': f"{valid_so_far}/{num_processed}"
+                        })
+                    else:
+                        print(f"Round {num_processed}: estimated {est_so_far}/{num_processed}, simulated {sim_so_far}/{num_processed}, valid {valid_so_far}/{num_processed}")
+            except Exception:
+                pass
             offset = offset_
         for i in range(batch_size):
             simulated[i] = np.array(sum(result[i * 6:(i + 1) * 6]) == 6)
@@ -467,8 +664,39 @@ if __name__ == '__main__':
                 new_data_dict["qpos"] = data_dict[i]["qpos"]
                 new_data_dict["scale"] = data_dict[i]["scale"]
                 result_list.append(new_data_dict)
-        np.save(os.path.join(args.result_path, args.object_code +
-                '.npy'), result_list, allow_pickle=True)
+        # segment-aware save and stats.json update
+        segment_dir = os.path.join(args.result_path, 'segments', 'single', args.object_code)
+        os.makedirs(segment_dir, exist_ok=True)
+        seg_start = int(getattr(args, 'start', 0) or 0)
+        seg_count = int(batch_size)
+        seg_end = seg_start + seg_count
+        save_name = f"{args.object_code}_chunk_{seg_start}_{seg_end}.npy"
+        save_path = os.path.join(segment_dir, save_name)
+        np.save(save_path, result_list, allow_pickle=True)
+        # update stats
+        est_cnt = int((E_pen_array < args.penetration_threshold).sum())
+        sim_cnt = int(simulated.sum())
+        val_cnt = int(valid.sum())
+        stats_path = os.path.join(segment_dir, 'stats.json')
+        stats = {}
+        if os.path.exists(stats_path):
+            try:
+                with open(stats_path, 'r') as f:
+                    stats = _json.load(f) or {}
+            except Exception:
+                stats = {}
+        stats[save_name] = {
+            'mode': 'single',
+            'object': args.object_code,
+            'start': seg_start,
+            'count': seg_count,
+            'estimated': est_cnt,
+            'simulated': sim_cnt,
+            'valid': val_cnt,
+            'timestamp': _dt.now().isoformat(timespec='seconds')
+        }
+        with open(stats_path, 'w') as f:
+            _json.dump(stats, f, indent=2)
     # Avoid interpreter teardown crashes from Isaac Gym/PhysX by exiting immediately.
     # Result files are already saved at this point.
     import os as _os
