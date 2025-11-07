@@ -23,15 +23,15 @@ server:
   port: 7890
 
 visualization:
-  enable: false
+  enable: true
   point_size: 2.0
   cmap: viridis
 
 multipose:
   # Centralized control of the 1×2×3 pose multiplicity
-  kp1_samples:      4         # number of first-hand keypoints ("1")
-  kp2_samples_per_kp1: 4      # number of second-hand keypoints per first-hand ("2")
-  twist_count_per_pair: 16     # number of random twists per (kp1,kp2) pair ("3")
+  kp1_samples:      1         # number of first-hand keypoints ("1")
+  kp2_samples_per_kp1: 1      # number of second-hand keypoints per first-hand ("2")
+  twist_count_per_pair: 1     # number of random twists per (kp1,kp2) pair ("3")
   # Sampling mode: if true, sample kp1/kp2 by value (softmax over scores);
   # if false, use top-k style (deterministic top-n for kp2 and dedup for kp1)
   sample_by_value: true
@@ -41,7 +41,7 @@ multipose:
   min_quantile_kp1: 0.5       # e.g., 0.05 drops the bottom 5% for kp1
   min_quantile_kp2: 0.5       # e.g., 0.05 drops the bottom 5% for kp2
   # Parallel optimization controls
-  pairs_per_batch: 256          # how many (kp1,kp2) pairs to process per batch
+  pairs_per_batch: 1          # how many (kp1,kp2) pairs to process per batch
   max_parallel: 1             # maximum concurrent optimizer processes
   # Process mode: "multiprocess" (N processes, 1 sample each) or "batched" (1 process, N samples)
   process_mode: batched

@@ -506,8 +506,7 @@ def process_object(obj_name: str, cfg: Dict, session_dirs: Dict[str, str], aff1,
                                 break
                             time.sleep(0.2)
                     finally:
-                        if last_step < int(total_steps):
-                            bar.update(int(total_steps) - last_step)
+                        # Do not force-fill to total on early exit; keep real progress
                         bar.close()
                     rc = p.returncode
                 if rc != 0:

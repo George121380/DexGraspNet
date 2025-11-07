@@ -1,3 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+.env
+.env.*
+
+# Datasets (large)
+third_party/DexGraspNet/data/dataset/
+data/dataset/
+**/dataset/**
+
+# Large file types
+*.npy
+*.npz
+*.pt
+*.pth
+*.onnx
+*.h5
+*.hdf5
+*.bin
+*.pkl
+*.pickle
+*.tar
+*.tar.gz
+*.zip
+*.7z
+*.bag
+
+# Logs & build artifacts
+logs/
+**/logs/**
+build/
+dist/
+*.egg-info/
 # Byte-compiled / cache
 __pycache__/
 *.py[cod]
