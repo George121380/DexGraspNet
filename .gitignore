@@ -4,12 +4,6 @@ experiments
 graspdata
 dataset
 
-# data subdirectories (avoid pushing large datasets)
-data/meshdata/
-data/experiments/
-data/graspdata/
-data/dataset/
-
 # Caches
 __pycache__
 *.pyc
@@ -29,17 +23,6 @@ __pycache__
 *.tar.gz
 *.zip
 *.7z
-
-# Local-only tooling and folders
-.vscode/
-dev/
-asset_process/data/
-
-# Heavy thirdparty deps (keep only what's explicitly included)
-thirdparty/CoACD/
-thirdparty/ManifoldPlus/
-thirdparty/TorchSDF/
-thirdparty/pytorch3d/
 
 # Logs and build
 logs/
